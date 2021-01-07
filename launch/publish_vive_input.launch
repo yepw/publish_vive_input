@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<launch>
+   <node pkg="publish_vive_input" type="publish_input" name="vive_input"
+         output="screen" cwd="node"/>
+</launch>
