@@ -9,6 +9,7 @@ project(publish_vive_input)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
     roscpp
+    relaxed_ik
 )
 
 ## System dependencies are found with CMake's conventions
@@ -27,7 +28,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES publish_vive_input
-  CATKIN_DEPENDS roscpp
+  CATKIN_DEPENDS roscpp relaxed_ik
 #  DEPENDS system_lib
 )
 
@@ -57,6 +58,8 @@ include_directories(
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/publish_vive_input_node.cpp)
 
+add_compile_definitions(GLM_ENABLE_EXPERIMENTAL)
+
 add_executable(publish_input
     src/publish_input.cpp
 )
@@ -69,12 +72,14 @@ add_executable(publish_input
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-# add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(publish_input
+    ${catkin_EXPORTED_TARGETS}
+)
 
 ## Specify libraries to link a library or executable target against
-# target_link_libraries(${PROJECT_NAME}_node
-#   ${catkin_LIBRARIES}
-# )
+target_link_libraries(publish_input
+    ${catkin_LIBRARIES}
+)
 
 #############
 ## Install ##
