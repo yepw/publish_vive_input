@@ -30,7 +30,7 @@ namespace vive_input
 
     struct Input
     {
-        glm::vec3 init_pos, position, prev_pos;
+        glm::vec3 init_pos, position;
         glm::vec3 clutch_offset, manual_offset;
         glm::quat init_orient, orientation, inv_init_quat;
         Switch grabbing, reset, clutching, manual_adj;
@@ -39,16 +39,21 @@ namespace vive_input
         Input()
         {
             grabbing = Switch(false, Switch::Type::HOLD);
-            reset = Switch(false, Switch::Type::SINGLE);
+            reset = Switch(false, Switch::Type::HOLD);
             clutching = Switch(false, Switch::Type::SINGLE);
             manual_adj = Switch(false, Switch::Type::HOLD);
         }
 
-        std::string to_str(bool show_euler=false)
+        std::string to_str()
         {
             std::string content;
             content  = "Position: " + glm::to_string(position) + "\n";
             content += "Orientation: " + glm::to_string(orientation) + "\n";
+            content += "Manual Adj: " + manual_adj.to_str();
+            content +=  "\t" + glm::to_string(manual_offset) + "\n";
+            content += "Grab: " + grabbing.to_str() + "\n";
+            content += "Reset: " + reset.to_str() + "\n";
+            content += "Clutch: " + clutching.to_str() + "\n";
 
             return content;
         }
@@ -79,13 +84,15 @@ namespace vive_input
 
         // ROS
         ros::Publisher ee_pub;
+        ros::Publisher gripper_pub;
 
 
         bool init();
         void handleControllerInput(std::string data);
+        void publishRobotData();
     };
 
-    bool initializeSocket(Socket &sock);
+    bool initializeSocket(Socket &sock, bool incoming=true);
     std::string getSocketData(Socket &sock);
 
 } // namespace vive_input
