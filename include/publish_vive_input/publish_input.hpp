@@ -94,6 +94,10 @@ namespace vive_input
 
     bool initializeSocket(Socket &sock, bool incoming=true);
     std::string getSocketData(Socket &sock);
+    glm::vec3 positionToRobotFrame(glm::vec3 v);
+    glm::quat orientationToRobotFrame(glm::quat quat_in);
+    glm::mat4 translation_matrix(glm::vec3 coords);
+    glm::vec3 translation_from_matrix(glm::mat4 mat);
 
 } // namespace vive_input
 

@@ -26,7 +26,7 @@ using App = vive_input::App;
 
 namespace vive_input {
 
-    ContrCommands translateButtonToCommand(std::string button)
+    ContrCommands translateInputToCommand(std::string button)
     {
         if (button == "pose")
         {
@@ -127,6 +127,34 @@ namespace vive_input {
         return data;
     }
 
+    glm::vec3 positionToRobotFrame(glm::vec3 v)
+    {
+        return glm::vec3(-v.y, -v.z, v.x);
+    }
+
+    glm::quat orientationToRobotFrame(glm::quat quat_in)
+    {
+        glm::vec3 new_euler = glm::vec3(glm::pitch(quat_in), -glm::roll(quat_in), -glm::yaw(quat_in));
+        glm::quat new_quat = glm::quat(new_euler);
+
+        return new_quat;
+    }
+
+    glm::mat4 translation_matrix(glm::vec3 coords)
+    {
+        glm::mat4 mat = glm::mat4();
+        mat[0][3] = coords.x;
+        mat[1][3] = coords.y;
+        mat[2][3] = coords.z;
+
+        return mat;
+    }
+
+    glm::vec3 translation_from_matrix(glm::mat4 mat)
+    {
+        return glm::vec3(mat[0][3], mat[1][3], mat[2][3]);
+    }
+
     void App::handleControllerInput(std::string data)
     {
         json j = json::parse(data);
@@ -140,7 +168,7 @@ namespace vive_input {
         {
             if (button->is_object())
             {
-                ContrCommands command(translateButtonToCommand(button.key()));
+                ContrCommands command(translateInputToCommand(button.key()));
 
                 switch (command)
                 {
@@ -236,34 +264,28 @@ namespace vive_input {
             input.inv_init_quat = glm::inverse(quat_vec);
         }
 
+        // TODO: **Add mode for using camera frame**
+        if (!input.clutching.is_on() && !input.reset.is_on()) {
+            input.position = pos_vec - input.init_pos;
+            input.position = glm::rotate(input.init_orient, input.position);
+            // glm::mat4 trans_mat = glm::toMat4(input.cam_orient) * translation_matrix(input.position);
+            // input.position = translation_from_matrix(trans_mat);
+            input.orientation = input.inv_init_quat * quat_vec; // Displacement b/w quats
 
+            input.position = positionToRobotFrame(input.position);
+            // input.manual_offset = positionToRobotFrame(input.manual_offset);
+            input.orientation = orientationToRobotFrame(input.orientation);
+        }
 
-        // printText(input.to_str());
+        printText(input.to_str());
+
+        publishRobotData();
 
         if (!out_msg.is_null())
         {
             std::string output = out_msg.dump(3);
-            printText(output);
             send(out_socket.socket, output.c_str(), output.size(), 0);
         }
-
-
-        // // TODO: **Add mode for using camera frame**
-        // if (!input.clutching.is_on() && !input.reset.is_on()) {
-        //     input.position = pos_vec - input.init_pos;
-        //     input.position = glm::rotate(input.init_orient, input.position);
-        //     glm::mat4 trans_mat = glm::toMat4(input.cam_orient) * translation_matrix(input.position);
-        //     input.position = translation_from_matrix(trans_mat);
-        //     input.orientation = input.inv_init_quat * quat_vec; // Displacement b/w quats
-
-        //     input.position = positionToRobotFrame(input.position);
-        //     // input.manual_offset = positionToRobotFrame(input.manual_offset);
-        //     input.orientation = orientationToRobotFrame(input.orientation);
-        // }
-        // else {
-        //     // Clutching mode handling
-        //     // NOTE: The behavior of buttons changes while in this mode
-        // }
     }
 
     void App::publishRobotData()
