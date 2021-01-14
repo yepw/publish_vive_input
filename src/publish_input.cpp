@@ -5,6 +5,11 @@
 #include <ros/ros.h>
 #include <std_msgs/Bool.h>
 #include <geometry_msgs/Pose.h>
+#include <tf/transform_listener.h>
+#include <tf/transform_datatypes.h>
+// #include <tf2_ros/transform_listener.h>
+#include <geometry_msgs/TransformStamped.h>
+// #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <relaxed_ik/EEPoseGoals.h>
 
 #include <glm/vec3.hpp>
@@ -92,7 +97,7 @@ namespace vive_input {
         // Init ROS
         ros::NodeHandle n;
         ee_pub = n.advertise<relaxed_ik::EEPoseGoals>("/relaxed_ik/ee_pose_goals", 1000);
-        gripper_pub = n.advertise<std_msgs::Bool>("/relaxed_ik/gripper_state", 1000);
+        grasper_pub = n.advertise<std_msgs::Bool>("/relaxed_ik/grasper_state", 1000);
 
         // Init sockets
 
@@ -140,6 +145,19 @@ namespace vive_input {
         return new_quat;
     }
 
+    glm::vec3 positionToCameraFrame(glm::vec3 prev_p, glm::vec3 input_vel, glm::mat3 r_cam)
+    {
+        glm::vec3 new_pos;
+
+        new_pos = prev_p + r_cam*input_vel;
+        return new_pos;
+    }
+
+    glm::quat orientationToCameraFrame(glm::quat q)
+    {
+
+    }
+
     glm::mat4 translation_matrix(glm::vec3 coords)
     {
         glm::mat4 mat = glm::mat4();
@@ -179,10 +197,11 @@ namespace vive_input {
 
                         auto quat = (*button)["orientation"];
                         quat_vec = glm::quat(quat["w"], quat["x"], quat["y"], quat["z"]);
-                    
+
                         if (!input.initialized)
                         {
                             input.init_pos = pos_vec;
+                            input.prev_input_pos = pos_vec;
                             input.init_orient = quat_vec;
 
                             input.inv_init_quat = glm::inverse(quat_vec);
@@ -264,20 +283,43 @@ namespace vive_input {
             input.inv_init_quat = glm::inverse(quat_vec);
         }
 
-        // TODO: **Add mode for using camera frame**
         if (!input.clutching.is_on() && !input.reset.is_on()) {
-            input.position = pos_vec - input.init_pos;
-            input.position = glm::rotate(input.init_orient, input.position);
-            // glm::mat4 trans_mat = glm::toMat4(input.cam_orient) * translation_matrix(input.position);
-            // input.position = translation_from_matrix(trans_mat);
-            input.orientation = input.inv_init_quat * quat_vec; // Displacement b/w quats
+            glm::vec3 prev_pos = input.prev_input_pos - input.init_pos;
+            glm::vec3 input_vel = pos_vec - input.prev_input_pos;
+            tf::TransformListener listener;
+            tf::StampedTransform base_to_cam;
+            bool transform_found(false);
+            while (!transform_found)
+            {
+                transform_found = listener.waitForTransform("base", "right_hand", ros::Time::now(), ros::Duration(0.2));
+                if (transform_found) {
+                    listener.lookupTransform("base", "right_hand", ros::Time(0), base_to_cam);
+                }
+            }
 
-            input.position = positionToRobotFrame(input.position);
-            // input.manual_offset = positionToRobotFrame(input.manual_offset);
-            input.orientation = orientationToRobotFrame(input.orientation);
+            tf::Quaternion tf_quat(base_to_cam.getRotation());
+            glm::quat glm_quat(tf_quat.w(), tf_quat.x(), tf_quat.y(), tf_quat.z());
+            glm::mat3 rot_mat(glm::mat3_cast(glm_quat));
+            std::cout << "Prev pos: " << glm::to_string(prev_pos) << std::endl;
+            std::cout << "Input vel: " << glm::to_string(input_vel) << std::endl;
+            std::cout << glm::to_string(rot_mat) << std::endl;
+
+
+            input.position = positionToCameraFrame(prev_pos, input_vel, rot_mat);
+
+            std::cout << "Pos: " << glm::to_string(input.position) << std::endl;
+
+            input.orientation = glm::quat(1.0, 0.0, 0.0, 0.0);
+
+            // input.position = positionToRobotFrame(input.position);
+
+            // // input.manual_offset = positionToRobotFrame(input.manual_offset);
+            // input.orientation = orientationToRobotFrame(input.orientation);
         }
 
-        printText(input.to_str());
+        input.prev_input_pos = pos_vec;
+
+        // printText(input.to_str());
 
         publishRobotData();
 
@@ -302,18 +344,28 @@ namespace vive_input {
         pose.orientation.w = input.orientation.w;
 
         Pose pose_cam;
-        // pose_cam.position.x = input.manual_offset.x;
-        // pose_cam.position.y = input.manual_offset.y;
-        // pose_cam.position.z = input.manual_offset.z;
+        // pose_cam.position.x = input.position.x;
+        // pose_cam.position.y = input.position.y;
+        // pose_cam.position.z = input.position.z;
 
         pose_cam.orientation.x = 0.0;
         pose_cam.orientation.y = 0.0;
         pose_cam.orientation.z = 0.0;
         pose_cam.orientation.w = 1.0;
 
+
+        Pose pose_head;
+
+        pose_head.orientation.x = 0.0;
+        pose_head.orientation.y = 0.0;
+        pose_head.orientation.z = 0.0;
+        pose_head.orientation.w = 1.0;
+
+
         goal.header.stamp = ros::Time::now();
         goal.ee_poses.push_back(pose);
         goal.ee_poses.push_back(pose_cam);
+        goal.ee_poses.push_back(pose_head);
 
         ee_pub.publish(goal);
 
@@ -321,7 +373,7 @@ namespace vive_input {
         Bool grabbing;
         grabbing.data = input.grabbing.is_on();
 
-        gripper_pub.publish(grabbing);        
+        grasper_pub.publish(grabbing);        
     }
 
 

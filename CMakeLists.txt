@@ -10,6 +10,9 @@ project(publish_vive_input)
 find_package(catkin REQUIRED COMPONENTS
     roscpp
     relaxed_ik
+    tf
+    std_msgs
+    geometry_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -28,7 +31,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES publish_vive_input
-  CATKIN_DEPENDS roscpp relaxed_ik
+  CATKIN_DEPENDS roscpp relaxed_ik geometry_msgs std_msgs tf
 #  DEPENDS system_lib
 )
 

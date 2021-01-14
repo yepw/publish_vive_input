@@ -31,6 +31,7 @@ namespace vive_input
     struct Input
     {
         glm::vec3 init_pos, position;
+        glm::vec3 prev_input_pos;
         glm::vec3 clutch_offset, manual_offset;
         glm::quat init_orient, orientation, inv_init_quat;
         Switch grabbing, reset, clutching, manual_adj;
@@ -38,7 +39,7 @@ namespace vive_input
 
         Input()
         {
-            grabbing = Switch(false, Switch::Type::HOLD);
+            grabbing = Switch(true, Switch::Type::SINGLE);
             reset = Switch(false, Switch::Type::HOLD);
             clutching = Switch(false, Switch::Type::SINGLE);
             manual_adj = Switch(false, Switch::Type::HOLD);
@@ -84,7 +85,7 @@ namespace vive_input
 
         // ROS
         ros::Publisher ee_pub;
-        ros::Publisher gripper_pub;
+        ros::Publisher grasper_pub;
 
 
         bool init();
