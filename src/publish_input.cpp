@@ -5,11 +5,8 @@
 #include <ros/ros.h>
 #include <std_msgs/Bool.h>
 #include <geometry_msgs/Pose.h>
-#include <tf/transform_listener.h>
-#include <tf/transform_datatypes.h>
-// #include <tf2_ros/transform_listener.h>
+#include <tf2_ros/transform_listener.h>
 #include <geometry_msgs/TransformStamped.h>
-// #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <relaxed_ik/EEPoseGoals.h>
 
 #include <glm/vec3.hpp>
@@ -132,12 +129,12 @@ namespace vive_input {
         return data;
     }
 
-    glm::vec3 positionToRobotFrame(glm::vec3 v)
+    glm::vec3 positionToUR5Frame(glm::vec3 v)
     {
-        return glm::vec3(-v.y, -v.z, v.x);
+        return glm::vec3(-v.z, -v.x, v.y);
     }
 
-    glm::quat orientationToRobotFrame(glm::quat quat_in)
+    glm::quat orientationToUR5Frame(glm::quat quat_in)
     {
         glm::vec3 new_euler = glm::vec3(glm::pitch(quat_in), -glm::roll(quat_in), -glm::yaw(quat_in));
         glm::quat new_quat = glm::quat(new_euler);
@@ -148,7 +145,6 @@ namespace vive_input {
     glm::vec3 positionToCameraFrame(glm::vec3 prev_p, glm::vec3 input_vel, glm::mat3 r_cam)
     {
         glm::vec3 new_pos;
-
         new_pos = prev_p + r_cam*input_vel;
         return new_pos;
     }
@@ -175,6 +171,9 @@ namespace vive_input {
 
     void App::handleControllerInput(std::string data)
     {
+        static tf2_ros::Buffer tf_buffer;
+        static tf2_ros::TransformListener tf_listener(tf_buffer);
+
         json j = json::parse(data);
         json out_msg;
 
@@ -286,32 +285,32 @@ namespace vive_input {
         if (!input.clutching.is_on() && !input.reset.is_on()) {
             glm::vec3 prev_pos = input.prev_input_pos - input.init_pos;
             glm::vec3 input_vel = pos_vec - input.prev_input_pos;
-            tf::TransformListener listener;
-            tf::StampedTransform base_to_cam;
+            // tf::TransformListener listener;
+            // tf::StampedTransform base_to_cam;
+
             bool transform_found(false);
+            geometry_msgs::TransformStamped base_to_cam;
             while (!transform_found)
             {
-                transform_found = listener.waitForTransform("base", "right_hand", ros::Time::now(), ros::Duration(0.2));
-                if (transform_found) {
-                    listener.lookupTransform("base", "right_hand", ros::Time(0), base_to_cam);
+                try{
+                    base_to_cam = tf_buffer.lookupTransform("base", "right_hand", ros::Time(0));
+                    transform_found = true;
+                }
+                catch (tf2::TransformException &ex) {
+                    ROS_WARN("%s",ex.what());
                 }
             }
 
-            tf::Quaternion tf_quat(base_to_cam.getRotation());
-            glm::quat glm_quat(tf_quat.w(), tf_quat.x(), tf_quat.y(), tf_quat.z());
+            geometry_msgs::Quaternion cam_quat(base_to_cam.transform.rotation);
+            glm::quat glm_quat(cam_quat.w, cam_quat.x, cam_quat.y, cam_quat.z);
             glm::mat3 rot_mat(glm::mat3_cast(glm_quat));
-            std::cout << "Prev pos: " << glm::to_string(prev_pos) << std::endl;
-            std::cout << "Input vel: " << glm::to_string(input_vel) << std::endl;
             std::cout << glm::to_string(rot_mat) << std::endl;
 
-
             input.position = positionToCameraFrame(prev_pos, input_vel, rot_mat);
-
-            std::cout << "Pos: " << glm::to_string(input.position) << std::endl;
+            input.position = positionToUR5Frame(input.position);
 
             input.orientation = glm::quat(1.0, 0.0, 0.0, 0.0);
 
-            // input.position = positionToRobotFrame(input.position);
 
             // // input.manual_offset = positionToRobotFrame(input.manual_offset);
             // input.orientation = orientationToRobotFrame(input.orientation);

@@ -10,7 +10,7 @@ project(publish_vive_input)
 find_package(catkin REQUIRED COMPONENTS
     roscpp
     relaxed_ik
-    tf
+    tf2_ros
     std_msgs
     geometry_msgs
 )
@@ -31,7 +31,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES publish_vive_input
-  CATKIN_DEPENDS roscpp relaxed_ik geometry_msgs std_msgs tf
+  CATKIN_DEPENDS roscpp relaxed_ik geometry_msgs std_msgs tf2_ros
 #  DEPENDS system_lib
 )
 

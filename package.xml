@@ -21,7 +21,7 @@
   <depend>relaxed_ik</depend>
   <depend>std_msgs</depend>
   <depend>geometry_msgs</depend>
-  <depend>tf</depend>
+  <depend>tf2_ros</depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
