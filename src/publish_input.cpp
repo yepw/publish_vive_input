@@ -1,9 +1,19 @@
 #include <netinet/in.h>
 #include <poll.h>
+#include <thread>
+
+// OpenCV
+#include <opencv2/opencv.hpp>
+#include <opencv2/aruco.hpp>
+#include <cv_bridge/cv_bridge.h>
+
+// TEST
+#include <opencv2/highgui.hpp>
 
 // ROS
 #include <ros/ros.h>
 #include <std_msgs/Bool.h>
+#include <sensor_msgs/Image.h>
 #include <geometry_msgs/Pose.h>
 #include <tf2_ros/transform_listener.h>
 #include <geometry_msgs/TransformStamped.h>
@@ -30,24 +40,19 @@ namespace vive_input {
 
     ContrCommands translateInputToCommand(std::string button)
     {
-        if (button == "pose")
-        {
+        if (button == "pose") {
             return ContrCommands::POSE;
         }
-        else if (button == "trigger")
-        {
+        else if (button == "trigger") {
             return ContrCommands::GRAB;
         }
-        else if (button == "gripper")
-        {
+        else if (button == "gripper") {
             return ContrCommands::RESET;
         }
-        else if (button == "menu")
-        {
+        else if (button == "menu") {
             return ContrCommands::CLUTCH;
         }
-        else if (button == "trackpad")
-        {
+        else if (button == "trackpad") {
             return ContrCommands::OFFSET;
         }
 
@@ -56,8 +61,7 @@ namespace vive_input {
 
     bool initializeSocket(Socket &sock, bool incoming)
     {
-        if ((sock.socket = socket(AF_INET, SOCK_DGRAM, 0)) == 0)
-        {
+        if ((sock.socket = socket(AF_INET, SOCK_DGRAM, 0)) == 0) {
             printText("Could not initialize socket.");
             return false;
         }
@@ -67,18 +71,15 @@ namespace vive_input {
         sock.address.sin_addr.s_addr = INADDR_ANY;
         sock.address.sin_port = htons(sock.port);
 
-        if (incoming)
-        {
+        if (incoming) {
             if (bind(sock.socket, (const sockaddr *)&sock.address, sizeof(sock.address)) < 0)
             { 
                 printText("Socket binding failed."); 
                 return false;
             }
         }
-        else
-        {
-            if (connect(sock.socket, (struct sockaddr *)&sock.address, sizeof(sock.address)) < 0) 
-            { 
+        else {
+            if (connect(sock.socket, (struct sockaddr *)&sock.address, sizeof(sock.address)) < 0) { 
                 std::string err_str = strerror(errno);
                 printText("Socket connection failed.");
                 printText("Error: " + err_str);
@@ -95,6 +96,7 @@ namespace vive_input {
         ros::NodeHandle n;
         ee_pub = n.advertise<relaxed_ik::EEPoseGoals>("/relaxed_ik/ee_pose_goals", 1000);
         grasper_pub = n.advertise<std_msgs::Bool>("/relaxed_ik/grasper_state", 1000);
+        cam_sub = n.subscribe("/cam/dyn_image", 10, App::evaluateVisibility);
 
         // Init sockets
 
@@ -102,13 +104,11 @@ namespace vive_input {
         // the same as the out port
         in_socket.port = 8081;
 
-        if (!initializeSocket(in_socket)) 
-        {
+        if (!initializeSocket(in_socket)) {
             return false;
         }
 
-        if (!initializeSocket(out_socket, false)) 
-        {
+        if (!initializeSocket(out_socket, false)) {
             return false;
         }
 
@@ -129,9 +129,74 @@ namespace vive_input {
         return data;
     }
 
+    void App::evaluateVisibility(const sensor_msgs::ImageConstPtr image)
+    {
+        cv_bridge::CvImageConstPtr raw_img;
+        cv::Mat img;
+        try
+        {
+            raw_img = cv_bridge::toCvShare(image, sensor_msgs::image_encodings::RGB8);
+            cv::flip(raw_img->image, img, 0);
+        }
+        catch (cv_bridge::Exception& e)
+        {
+            printText("cv_bridge exception: %s", 0);
+            printText(e.what());
+            return;
+        }
+
+        std::vector<int> marker_ids;
+        std::vector<std::vector<cv::Point2f> > marker_corners, rejected_candidates;            
+        cv::Ptr<cv::aruco::DetectorParameters> detect_params = cv::aruco::DetectorParameters::create();
+        cv::Ptr<cv::aruco::Dictionary> ar_dict = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250); 
+
+        cv::aruco::detectMarkers(img, ar_dict, marker_corners, marker_ids, detect_params);
+
+        if (marker_corners.size() > 0) { 
+            cv::aruco::drawDetectedMarkers(img, marker_corners, marker_ids);
+        }
+
+        cv::imshow("Test", img);
+        cv::waitKey(25);
+    }
+
+    inline glm::quat quaternionDisplacement(const glm::quat &q1, const glm::quat &q2)
+    {
+        return glm::inverse(q1) * q2;
+    }
+
+    glm::quat rotateQuaternion(glm::quat q, glm::mat3 R)
+    {
+        float angle(glm::angle(q));
+        glm::vec3 axis(glm::axis(q));
+
+        glm::vec3 out_imag((float)glm::sin(angle / 2.0) * (R * axis));
+        float out_real(glm::cos(angle / 2.0));
+
+        return glm::quat(out_real, out_imag.x, out_imag.y, out_imag.z);
+    }
+
+    glm::vec3 rotatePositionByQuaternion(glm::vec3 pos, glm::quat q, glm::quat q_inverse)
+    {
+        glm::quat p(0.0, pos.x, pos.y, pos.z);
+        glm::quat p_prime((q * p) * q_inverse);
+        return glm::vec3(p_prime.x, p_prime.y, p_prime.z);
+    }
+
+    inline glm::vec3 positionToCameraFrame(const glm::vec3 &prev_p, const glm::vec3 &input_vel, 
+            const glm::mat3 &r_cam)
+    {
+        return prev_p + r_cam*input_vel;
+    }
+
+    glm::quat orientationToCameraFrame(glm::quat q)
+    {
+
+    }
+
     glm::vec3 positionToUR5Frame(glm::vec3 v)
     {
-        return glm::vec3(-v.z, -v.x, v.y);
+        return glm::vec3(v.x, v.z, -v.y);
     }
 
     glm::quat orientationToUR5Frame(glm::quat quat_in)
@@ -142,31 +207,14 @@ namespace vive_input {
         return new_quat;
     }
 
-    glm::vec3 positionToCameraFrame(glm::vec3 prev_p, glm::vec3 input_vel, glm::mat3 r_cam)
+    void App::resetPose(glm::vec3 new_pos, glm::quat new_quat)
     {
-        glm::vec3 new_pos;
-        new_pos = prev_p + r_cam*input_vel;
-        return new_pos;
-    }
+        input.init_orient = new_quat;
+        input.prev_input_quat = input.init_orient;
+        input.inverse_init_orient = glm::inverse(input.init_orient);
 
-    glm::quat orientationToCameraFrame(glm::quat q)
-    {
-
-    }
-
-    glm::mat4 translation_matrix(glm::vec3 coords)
-    {
-        glm::mat4 mat = glm::mat4();
-        mat[0][3] = coords.x;
-        mat[1][3] = coords.y;
-        mat[2][3] = coords.z;
-
-        return mat;
-    }
-
-    glm::vec3 translation_from_matrix(glm::mat4 mat)
-    {
-        return glm::vec3(mat[0][3], mat[1][3], mat[2][3]);
+        input.init_pos = rotatePositionByQuaternion(new_pos, input.init_orient, input.inverse_init_orient);
+        input.prev_input_pos = input.init_pos;
     }
 
     void App::handleControllerInput(std::string data)
@@ -177,14 +225,13 @@ namespace vive_input {
         json j = json::parse(data);
         json out_msg;
 
-        glm::vec3 pos_vec;
+        glm::vec3 pos_vec, cur_pos;
         glm::quat quat_vec;
 
         auto contr = j.begin(); // We only handle the first controller
         for (json::iterator button = contr->begin(); button != contr->end(); button++)
         {
-            if (button->is_object())
-            {
+            if (button->is_object()) {
                 ContrCommands command(translateInputToCommand(button.key()));
 
                 switch (command)
@@ -197,16 +244,15 @@ namespace vive_input {
                         auto quat = (*button)["orientation"];
                         quat_vec = glm::quat(quat["w"], quat["x"], quat["y"], quat["z"]);
 
-                        if (!input.initialized)
-                        {
-                            input.init_pos = pos_vec;
-                            input.prev_input_pos = pos_vec;
-                            input.init_orient = quat_vec;
-
-                            input.inv_init_quat = glm::inverse(quat_vec);
-
+                        if (!input.initialized) {
+                            resetPose(pos_vec, quat_vec);
+                            cur_pos = input.init_pos;
                             input.initialized = true;
                         }
+                        else {
+                            cur_pos = rotatePositionByQuaternion(pos_vec, input.init_orient, input.inverse_init_orient);
+                        }
+
                     }   break;
 
                     case ContrCommands::GRAB:
@@ -223,8 +269,7 @@ namespace vive_input {
                     {
                         input.clutching = (*button)["boolean"];
 
-                        if (input.clutching.confirm_flip())
-                        {
+                        if (input.clutching.confirm_flip()) {
                             out_msg["clutching"] = input.clutching.is_on();
                         }
                     }   break;
@@ -235,8 +280,7 @@ namespace vive_input {
                         input.manual_offset.x = (*button)["2d"]["x"];
                         input.manual_offset.y = (*button)["2d"]["y"];
 
-                        if (!input.clutching.is_on() && input.manual_adj.confirm_flip_on())
-                        {
+                        if (!input.clutching.is_on() && input.manual_adj.confirm_flip_on()) {
                             if (input.manual_offset.x >= 0.5) {
                                 out_msg["primary_next"] = true;
                             }
@@ -266,64 +310,72 @@ namespace vive_input {
 
         if (input.clutching.is_flipping()) {
             if (input.clutching.is_on()) { // When just turned on
-                input.clutch_offset = pos_vec - input.init_pos;
+                input.clutch_offset = cur_pos - input.init_pos;
                 // TODO: Add orientation handling
             }
             else {
-                input.init_pos = pos_vec - input.clutch_offset;
+                input.init_pos = cur_pos - input.clutch_offset;
             }
         }
 
-        if (!input.clutching.is_on() && input.reset.confirm_flip_on())
-        {
-            input.init_pos = pos_vec;
-            input.init_orient = quat_vec;
-
-            input.inv_init_quat = glm::inverse(quat_vec);
+        if (!input.clutching.is_on() && input.reset.confirm_flip_off()) {
+            resetPose(pos_vec, quat_vec);
+            cur_pos = input.init_pos;
         }
 
         if (!input.clutching.is_on() && !input.reset.is_on()) {
-            glm::vec3 prev_pos = input.prev_input_pos - input.init_pos;
-            glm::vec3 input_vel = pos_vec - input.prev_input_pos;
-            // tf::TransformListener listener;
-            // tf::StampedTransform base_to_cam;
-
             bool transform_found(false);
             geometry_msgs::TransformStamped base_to_cam;
             while (!transform_found)
             {
-                try{
+                try {
                     base_to_cam = tf_buffer.lookupTransform("base", "right_hand", ros::Time(0));
                     transform_found = true;
                 }
                 catch (tf2::TransformException &ex) {
-                    ROS_WARN("%s",ex.what());
+                    // ROS_WARN("%s",ex.what());
                 }
             }
 
+            // Convert transform to glm mat3
             geometry_msgs::Quaternion cam_quat(base_to_cam.transform.rotation);
             glm::quat glm_quat(cam_quat.w, cam_quat.x, cam_quat.y, cam_quat.z);
             glm::mat3 rot_mat(glm::mat3_cast(glm_quat));
-            std::cout << glm::to_string(rot_mat) << std::endl;
+            // std::cout << glm::to_string(rot_mat) << std::endl;
 
-            input.position = positionToCameraFrame(prev_pos, input_vel, rot_mat);
-            input.position = positionToUR5Frame(input.position);
+            // Calculate new position
+            glm::vec3 input_vel(cur_pos - input.prev_input_pos);
+            glm::vec3 prev_pos(input.cur_pos);
+            input.cur_pos = positionToCameraFrame(prev_pos, input_vel, rot_mat);
+            // input.out_pos = input.cur_pos;
+            // std::cout << "OutPos: " << glm::to_string(input.cur_pos) << std::endl;
+            input.out_pos = positionToUR5Frame(input.cur_pos);
+            // std::cout << "OutPos: " << glm::to_string(input.out_pos) << std::endl;
 
-            input.orientation = glm::quat(1.0, 0.0, 0.0, 0.0);
+            // Calculate new orientation
+            glm::quat normalized_prev(glm::normalize(input.prev_input_quat));
+            glm::quat q_v1(rotateQuaternion(normalized_prev, glm::mat3_cast(glm::normalize(quat_vec))));
+            std::cout << "q_v1: " << glm::to_string(q_v1) << std::endl;
+            glm::quat q_v(rotateQuaternion(quaternionDisplacement(q_v1, quat_vec), rot_mat));
+            std::cout << "q_v: " << glm::to_string(q_v) << std::endl;
+            std::cout << "dist: " << glm::to_string(quaternionDisplacement(q_v1, quat_vec)) << std::endl;
+            glm::quat prev_quat(input.orientation);
+            input.orientation = q_v * prev_quat;
+            // input.orientation = glm::quat(1.0, 0.0, 0.0, 0.0);       
 
 
-            // // input.manual_offset = positionToRobotFrame(input.manual_offset);
+            // input.manual_offset = positionToRobotFrame(input.manual_offset);
             // input.orientation = orientationToRobotFrame(input.orientation);
         }
 
-        input.prev_input_pos = pos_vec;
+        input.prev_input_pos = cur_pos;
+        input.prev_input_quat = quat_vec;
 
-        // printText(input.to_str());
+        printText(input.to_str());
 
         publishRobotData();
 
-        if (!out_msg.is_null())
-        {
+        if (!out_msg.is_null()) {
             std::string output = out_msg.dump(3);
             send(out_socket.socket, output.c_str(), output.size(), 0);
         }
@@ -333,9 +385,9 @@ namespace vive_input {
     {
         EEPoseGoals goal;
         Pose pose;
-        pose.position.x = input.position.x;
-        pose.position.y = input.position.y;
-        pose.position.z = input.position.z;
+        pose.position.x = input.out_pos.x;
+        pose.position.y = input.out_pos.y;
+        pose.position.z = input.out_pos.z;
 
         pose.orientation.x = input.orientation.x;
         pose.orientation.y = input.orientation.y;
@@ -378,8 +430,7 @@ namespace vive_input {
 
     int App::run()
     {
-        if (!init())
-        {
+        if (!init()) {
             return 1;
         }
         
@@ -387,14 +438,17 @@ namespace vive_input {
         poll_fds.fd = in_socket.socket;
         poll_fds.events = POLLIN; // Wait until there's data to read
 
+        spinner.start();
+
         while (ros::ok())
         {
-            if (poll(&poll_fds, 1, LOOP_RATE) > 0)
-            {
+            if (poll(&poll_fds, 1, LOOP_RATE) > 0) {
                 std::string input_data = getSocketData(in_socket);
                 handleControllerInput(input_data);
             }
         }
+
+        spinner.stop();
 
         shutdown(in_socket.socket, SHUT_RDWR);
         shutdown(out_socket.socket, SHUT_RDWR);

@@ -30,14 +30,15 @@ namespace vive_input
 
     struct Input
     {
-        glm::vec3 init_pos, position;
-        glm::vec3 prev_input_pos;
+        glm::vec3 init_pos, cur_pos, out_pos;
         glm::vec3 clutch_offset, manual_offset;
-        glm::quat init_orient, orientation, inv_init_quat;
+        glm::quat init_orient, inverse_init_orient, orientation;
+        glm::vec3 prev_input_pos;
+        glm::quat prev_input_quat;
         Switch grabbing, reset, clutching, manual_adj;
         bool initialized;
 
-        Input()
+        Input() : orientation(1.0, 0.0, 0.0, 0.0)
         {
             grabbing = Switch(true, Switch::Type::SINGLE);
             reset = Switch(false, Switch::Type::HOLD);
@@ -48,7 +49,7 @@ namespace vive_input
         std::string to_str()
         {
             std::string content;
-            content  = "Position: " + glm::to_string(position) + "\n";
+            content  = "Position: " + glm::to_string(out_pos) + "\n";
             content += "Orientation: " + glm::to_string(orientation) + "\n";
             content += "Manual Adj: " + manual_adj.to_str();
             content +=  "\t" + glm::to_string(manual_offset) + "\n";
@@ -74,7 +75,7 @@ namespace vive_input
     class App
     {
     public:
-        App() {}
+        App() : spinner(ros::AsyncSpinner(0)) {}
 
         int run();
 
@@ -86,17 +87,25 @@ namespace vive_input
         // ROS
         ros::Publisher ee_pub;
         ros::Publisher grasper_pub;
+        ros::Subscriber cam_sub;
+        ros::AsyncSpinner spinner;
 
+        static void evaluateVisibility(const sensor_msgs::ImageConstPtr image);
 
         bool init();
+        void resetPose(glm::vec3 pos, glm::quat quat);
         void handleControllerInput(std::string data);
         void publishRobotData();
     };
 
     bool initializeSocket(Socket &sock, bool incoming=true);
     std::string getSocketData(Socket &sock);
-    glm::vec3 positionToRobotFrame(glm::vec3 v);
-    glm::quat orientationToRobotFrame(glm::quat quat_in);
+    inline glm::quat quaternionDisplacement(const glm::quat &q1, const glm::quat &quat2);
+    glm::quat rotateQuaternion(glm::quat q, glm::mat3 R);
+    glm::vec3 rotatePositionByQuaternion(glm::vec3 pos, glm::quat q, glm::quat q_inverse);
+    inline glm::vec3 positionToCameraFrame(const glm::vec3 &prev_p, const glm::vec3 &input_vel, const glm::mat3 &r_cam);
+    glm::vec3 positionToUR5Frame(glm::vec3 v);
+    glm::quat orientationToUR5Frame(glm::quat quat_in);
     glm::mat4 translation_matrix(glm::vec3 coords);
     glm::vec3 translation_from_matrix(glm::mat4 mat);
 

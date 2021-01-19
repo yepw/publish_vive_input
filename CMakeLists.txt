@@ -12,12 +12,14 @@ find_package(catkin REQUIRED COMPONENTS
     relaxed_ik
     tf2_ros
     std_msgs
+    sensor_msgs
     geometry_msgs
+    cv_bridge
 )
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
-
+find_package(OpenCV REQUIRED)
 
 ###################################
 ## catkin specific configuration ##
@@ -31,7 +33,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES publish_vive_input
-  CATKIN_DEPENDS roscpp relaxed_ik geometry_msgs std_msgs tf2_ros
+  CATKIN_DEPENDS roscpp relaxed_ik geometry_msgs std_msgs sensor_msgs tf2_ros
 #  DEPENDS system_lib
 )
 
@@ -42,8 +44,9 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
- include
- ${catkin_INCLUDE_DIRS}
+  include
+  ${catkin_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -81,7 +84,10 @@ add_dependencies(publish_input
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(publish_input
-    ${catkin_LIBRARIES}
+  ${catkin_LIBRARIES}
+  opencv_imgcodecs
+  opencv_aruco
+  opencv_highgui # TEST
 )
 
 #############
