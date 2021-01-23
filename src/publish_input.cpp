@@ -360,8 +360,8 @@ namespace vive_input {
             std::cout << "q_v: " << glm::to_string(q_v) << std::endl;
             std::cout << "dist: " << glm::to_string(quaternionDisplacement(q_v1, quat_vec)) << std::endl;
             glm::quat prev_quat(input.orientation);
-            input.orientation = q_v * prev_quat;
-            // input.orientation = glm::quat(1.0, 0.0, 0.0, 0.0);       
+            // input.orientation = q_v * prev_quat;
+            input.orientation = glm::quat(1.0, 0.0, 0.0, 0.0);       
 
 
             // input.manual_offset = positionToRobotFrame(input.manual_offset);
