@@ -262,9 +262,9 @@ namespace vive_input {
                     {
                         input.clutching = (*button)["boolean"];
 
-                        if (input.clutching.confirm_flip()) {
-                            out_msg["clutching"] = input.clutching.is_on();
-                        }
+                        // if (input.clutching.confirm_flip()) {
+                        //     out_msg["clutching"] = input.clutching.is_on();
+                        // }
                     }   break;
 
                     case ContrCommands::OFFSET:
@@ -381,9 +381,9 @@ namespace vive_input {
 
         // Camera pose goal
         Pose pose_cam;
-        // pose_cam.position.x = input.position.x;
-        // pose_cam.position.y = input.position.y;
-        // pose_cam.position.z = input.position.z;
+        pose_cam.position.x = 0.0;
+        pose_cam.position.y = 0.0;
+        pose_cam.position.z = 0.0;
 
         pose_cam.orientation.x = 0.0;
         pose_cam.orientation.y = 0.0;
