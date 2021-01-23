@@ -165,7 +165,7 @@ namespace vive_input {
         return glm::inverse(q1) * q2;
     }
 
-    glm::quat rotateQuaternion(glm::quat q, glm::mat3 R)
+    glm::quat rotateQuaternionByMatrix(glm::quat q, glm::mat3 R)
     {
         float angle(glm::angle(q));
         glm::vec3 axis(glm::axis(q));
@@ -176,14 +176,14 @@ namespace vive_input {
         return glm::quat(out_real, out_imag.x, out_imag.y, out_imag.z);
     }
 
-    glm::vec3 rotatePositionByQuaternion(glm::vec3 pos, glm::quat q, glm::quat q_inverse)
-    {
-        glm::quat p(0.0, pos.x, pos.y, pos.z);
-        glm::quat p_prime((q * p) * q_inverse);
-        return glm::vec3(p_prime.x, p_prime.y, p_prime.z);
-    }
+    // glm::vec3 rotatePositionByQuaternion(glm::vec3 pos, glm::quat q, glm::quat q_inverse)
+    // {
+    //     glm::quat p(0.0, pos.x, pos.y, pos.z);
+    //     glm::quat p_prime((q * p) * q_inverse);
+    //     return glm::vec3(p_prime.x, p_prime.y, p_prime.z);
+    // }
 
-    inline glm::vec3 positionToCameraFrame(const glm::vec3 &prev_p, const glm::vec3 &input_vel, 
+    inline glm::vec3 updatePosition(const glm::vec3 &prev_p, const glm::vec3 &input_vel, 
             const glm::mat3 &r_cam)
     {
         return prev_p + r_cam*input_vel;
@@ -196,7 +196,7 @@ namespace vive_input {
 
     glm::vec3 positionToUR5Frame(glm::vec3 v)
     {
-        return glm::vec3(v.x, v.z, -v.y);
+        return glm::vec3(v.y, v.x, -v.z);
     }
 
     glm::quat orientationToUR5Frame(glm::quat quat_in)
@@ -207,14 +207,14 @@ namespace vive_input {
         return new_quat;
     }
 
-    void App::resetPose(glm::vec3 new_pos, glm::quat new_quat)
+    void App::resetPose(glm::vec3 new_pos, glm::quat new_orient)
     {
-        input.init_orient = new_quat;
-        input.prev_input_quat = input.init_orient;
-        input.inverse_init_orient = glm::inverse(input.init_orient);
+        input.init_raw_orient = new_orient;
+        input.prev_orient = input.init_raw_orient;
+        input.inverse_init_raw_orient = glm::inverse(input.init_raw_orient);
 
-        input.init_pos = rotatePositionByQuaternion(new_pos, input.init_orient, input.inverse_init_orient);
-        input.prev_input_pos = input.init_pos;
+        input.prev_raw_pos = new_pos;
+        input.prev_ee_pos = glm::vec3(); // Reset to zero
     }
 
     void App::handleControllerInput(std::string data)
@@ -225,8 +225,8 @@ namespace vive_input {
         json j = json::parse(data);
         json out_msg;
 
-        glm::vec3 pos_vec, cur_pos;
-        glm::quat quat_vec;
+        glm::vec3 cur_raw_pos;
+        glm::quat cur_raw_orient;
 
         auto contr = j.begin(); // We only handle the first controller
         for (json::iterator button = contr->begin(); button != contr->end(); button++)
@@ -239,18 +239,14 @@ namespace vive_input {
                     case ContrCommands::POSE:
                     {
                         auto pos = (*button)["position"];
-                        pos_vec = glm::vec3(pos["x"], pos["y"], pos["z"]);
+                        cur_raw_pos = glm::vec3(pos["x"], pos["y"], pos["z"]);
 
                         auto quat = (*button)["orientation"];
-                        quat_vec = glm::quat(quat["w"], quat["x"], quat["y"], quat["z"]);
+                        cur_raw_orient = glm::normalize(glm::quat(quat["w"], quat["x"], quat["y"], quat["z"]));
 
                         if (!input.initialized) {
-                            resetPose(pos_vec, quat_vec);
-                            cur_pos = input.init_pos;
+                            resetPose(cur_raw_pos, cur_raw_orient);
                             input.initialized = true;
-                        }
-                        else {
-                            cur_pos = rotatePositionByQuaternion(pos_vec, input.init_orient, input.inverse_init_orient);
                         }
 
                     }   break;
@@ -310,20 +306,20 @@ namespace vive_input {
 
         if (input.clutching.is_flipping()) {
             if (input.clutching.is_on()) { // When just turned on
-                input.clutch_offset = cur_pos - input.init_pos;
                 // TODO: Add orientation handling
             }
             else {
-                input.init_pos = cur_pos - input.clutch_offset;
+
             }
         }
 
         if (!input.clutching.is_on() && input.reset.confirm_flip_off()) {
-            resetPose(pos_vec, quat_vec);
-            cur_pos = input.init_pos;
+            resetPose(cur_raw_pos, cur_raw_orient);
         }
 
+        // Publish the pose as normal
         if (!input.clutching.is_on() && !input.reset.is_on()) {
+            // Get the transform from the Sawyer (cam robot) base to the end-effector
             bool transform_found(false);
             geometry_msgs::TransformStamped base_to_cam;
             while (!transform_found)
@@ -339,26 +335,21 @@ namespace vive_input {
 
             // Convert transform to glm mat3
             geometry_msgs::Quaternion cam_quat(base_to_cam.transform.rotation);
-            glm::quat glm_quat(cam_quat.w, cam_quat.x, cam_quat.y, cam_quat.z);
-            glm::mat3 rot_mat(glm::mat3_cast(glm_quat));
+            glm::quat cam_glm_quat(cam_quat.w, cam_quat.x, cam_quat.y, cam_quat.z);
+            glm::mat3 cam_rot_mat(glm::mat3_cast(cam_glm_quat));
             // std::cout << glm::to_string(rot_mat) << std::endl;
 
             // Calculate new position
-            glm::vec3 input_vel(cur_pos - input.prev_input_pos);
-            glm::vec3 prev_pos(input.cur_pos);
-            input.cur_pos = positionToCameraFrame(prev_pos, input_vel, rot_mat);
-            // input.out_pos = input.cur_pos;
-            // std::cout << "OutPos: " << glm::to_string(input.cur_pos) << std::endl;
-            input.out_pos = positionToUR5Frame(input.cur_pos);
-            // std::cout << "OutPos: " << glm::to_string(input.out_pos) << std::endl;
+            glm::vec3 input_vel(cur_raw_pos - input.prev_raw_pos);
+            input.cur_ee_pos = updatePosition(input.prev_ee_pos, input_vel, cam_rot_mat);
+            input.out_pos = positionToUR5Frame(input.cur_ee_pos);
 
             // Calculate new orientation
-            glm::quat normalized_prev(glm::normalize(input.prev_input_quat));
-            glm::quat q_v1(rotateQuaternion(normalized_prev, glm::mat3_cast(glm::normalize(quat_vec))));
-            std::cout << "q_v1: " << glm::to_string(q_v1) << std::endl;
-            glm::quat q_v(rotateQuaternion(quaternionDisplacement(q_v1, quat_vec), rot_mat));
-            std::cout << "q_v: " << glm::to_string(q_v) << std::endl;
-            std::cout << "dist: " << glm::to_string(quaternionDisplacement(q_v1, quat_vec)) << std::endl;
+            glm::quat q_v1(rotateQuaternionByMatrix(input.prev_orient, glm::mat3_cast(cur_raw_orient)));
+            // std::cout << "q_v1: " << glm::to_string(q_v1) << std::endl;
+            glm::quat q_v(rotateQuaternionByMatrix(quaternionDisplacement(q_v1, cur_raw_orient), cam_rot_mat));
+            // std::cout << "q_v: " << glm::to_string(q_v) << std::endl;
+            // std::cout << "dist: " << glm::to_string(quaternionDisplacement(q_v1, cur_input_orient)) << std::endl;
             glm::quat prev_quat(input.orientation);
             // input.orientation = q_v * prev_quat;
             input.orientation = glm::quat(1.0, 0.0, 0.0, 0.0);       
@@ -368,10 +359,11 @@ namespace vive_input {
             // input.orientation = orientationToRobotFrame(input.orientation);
         }
 
-        input.prev_input_pos = cur_pos;
-        input.prev_input_quat = quat_vec;
+        input.prev_raw_pos = cur_raw_pos;
+        input.prev_ee_pos = input.cur_ee_pos;
+        input.prev_orient = cur_raw_orient;
 
-        printText(input.to_str());
+        // printText(input.to_str());
 
         publishRobotData();
 

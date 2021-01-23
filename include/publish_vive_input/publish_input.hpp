@@ -30,11 +30,10 @@ namespace vive_input
 
     struct Input
     {
-        glm::vec3 init_pos, cur_pos, out_pos;
+        glm::vec3 prev_raw_pos, prev_ee_pos, cur_ee_pos, out_pos;
+        glm::quat init_raw_orient, inverse_init_raw_orient, orientation;
+        glm::quat prev_orient;
         glm::vec3 clutch_offset, manual_offset;
-        glm::quat init_orient, inverse_init_orient, orientation;
-        glm::vec3 prev_input_pos;
-        glm::quat prev_input_quat;
         Switch grabbing, reset, clutching, manual_adj;
         bool initialized;
 
