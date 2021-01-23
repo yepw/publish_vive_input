@@ -32,6 +32,7 @@ namespace vive_input
     {
         glm::vec3 prev_raw_pos, prev_ee_pos, cur_ee_pos, out_pos;
         glm::quat prev_raw_orient, prev_ee_orient, cur_ee_orient, out_orient;
+        glm::vec3 manual_offset;
         Switch grabbing, reset, clutching, manual_adj;
         bool initialized;
 
@@ -39,7 +40,7 @@ namespace vive_input
         {
             grabbing = Switch(true, Switch::Type::SINGLE);
             reset = Switch(false, Switch::Type::HOLD);
-            clutching = Switch(true, Switch::Type::SINGLE);
+            clutching = Switch(false, Switch::Type::SINGLE);
             manual_adj = Switch(false, Switch::Type::HOLD);
         }
 

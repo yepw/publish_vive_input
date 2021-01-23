@@ -135,7 +135,7 @@ namespace vive_input {
         cv::Mat img;
         try
         {
-            raw_img = cv_bridge::toCvShare(image, sensor_msgs::image_encodings::RGB8);
+            raw_img = cv_bridge::toCvShare(image, sensor_msgs::image_encodings::BGR8);
             cv::flip(raw_img->image, img, 0);
         }
         catch (cv_bridge::Exception& e)
