@@ -176,12 +176,16 @@ namespace vive_input {
         return glm::quat(out_real, out_imag.x, out_imag.y, out_imag.z);
     }
 
-    // glm::vec3 rotatePositionByQuaternion(glm::vec3 pos, glm::quat q, glm::quat q_inverse)
-    // {
-    //     glm::quat p(0.0, pos.x, pos.y, pos.z);
-    //     glm::quat p_prime((q * p) * q_inverse);
-    //     return glm::vec3(p_prime.x, p_prime.y, p_prime.z);
-    // }
+    glm::quat quaternionMultiplication(glm::quat q1, glm::quat q2)
+    {
+        glm::quat result;
+        result.w = q1.w*q2.w - q1.x*q2.x - q1.y*q2.y - q1.z*q2.z;
+        result.x = q1.w*q2.x + q1.x*q2.w + q1.y*q2.z - q1.z*q2.y;
+        result.y = q1.w*q2.y - q1.x*q2.z + q1.y*q2.w + q1.z*q2.x;
+        result.z = q1.w*q2.z + q1.x*q2.y - q1.y*q2.x + q1.z*q2.w;
+
+        return result;      
+    }
 
     inline glm::vec3 updatePosition(const glm::vec3 &prev_p, const glm::vec3 &input_vel, 
             const glm::mat3 &r_cam)
@@ -189,19 +193,14 @@ namespace vive_input {
         return prev_p + r_cam*input_vel;
     }
 
-    glm::quat orientationToCameraFrame(glm::quat q)
-    {
-
-    }
-
     glm::vec3 positionToUR5Frame(glm::vec3 v)
     {
         return glm::vec3(v.y, v.x, -v.z);
     }
 
-    glm::quat orientationToUR5Frame(glm::quat quat_in)
+    glm::quat orientationToUR5Frame(glm::quat q)
     {
-        glm::vec3 new_euler = glm::vec3(glm::pitch(quat_in), -glm::roll(quat_in), -glm::yaw(quat_in));
+        glm::vec3 new_euler(glm::yaw(q), glm::pitch(q), -glm::roll(q));
         glm::quat new_quat = glm::quat(new_euler);
 
         return new_quat;
@@ -209,12 +208,10 @@ namespace vive_input {
 
     void App::resetPose(glm::vec3 new_pos, glm::quat new_orient)
     {
-        input.init_raw_orient = new_orient;
-        input.prev_orient = input.init_raw_orient;
-        input.inverse_init_raw_orient = glm::inverse(input.init_raw_orient);
-
         input.prev_raw_pos = new_pos;
         input.prev_ee_pos = glm::vec3(); // Reset to zero
+        input.prev_raw_orient = new_orient;
+        input.prev_ee_orient = glm::quat(1.0, 0.0, 0.0, 0.0);
     }
 
     void App::handleControllerInput(std::string data)
@@ -304,16 +301,16 @@ namespace vive_input {
         }
 
 
-        if (input.clutching.is_flipping()) {
-            if (input.clutching.is_on()) { // When just turned on
-                // TODO: Add orientation handling
-            }
-            else {
+        // if (input.clutching.is_flipping()) {
+        //     if (input.clutching.is_on()) { // When just turned on
+        //         // TODO: Add orientation handling
+        //     }
+        //     else {
 
-            }
-        }
+        //     }
+        // }
 
-        if (!input.clutching.is_on() && input.reset.confirm_flip_off()) {
+        if (input.reset.confirm_flip_off()) {
             resetPose(cur_raw_pos, cur_raw_orient);
         }
 
@@ -337,7 +334,6 @@ namespace vive_input {
             geometry_msgs::Quaternion cam_quat(base_to_cam.transform.rotation);
             glm::quat cam_glm_quat(cam_quat.w, cam_quat.x, cam_quat.y, cam_quat.z);
             glm::mat3 cam_rot_mat(glm::mat3_cast(cam_glm_quat));
-            // std::cout << glm::to_string(rot_mat) << std::endl;
 
             // Calculate new position
             glm::vec3 input_vel(cur_raw_pos - input.prev_raw_pos);
@@ -345,25 +341,21 @@ namespace vive_input {
             input.out_pos = positionToUR5Frame(input.cur_ee_pos);
 
             // Calculate new orientation
-            glm::quat q_v1(rotateQuaternionByMatrix(input.prev_orient, glm::mat3_cast(cur_raw_orient)));
-            // std::cout << "q_v1: " << glm::to_string(q_v1) << std::endl;
+            glm::quat q_v1(glm::normalize(rotateQuaternionByMatrix(input.prev_raw_orient, glm::mat3_cast(cur_raw_orient))));
             glm::quat q_v(rotateQuaternionByMatrix(quaternionDisplacement(q_v1, cur_raw_orient), cam_rot_mat));
-            // std::cout << "q_v: " << glm::to_string(q_v) << std::endl;
-            // std::cout << "dist: " << glm::to_string(quaternionDisplacement(q_v1, cur_input_orient)) << std::endl;
-            glm::quat prev_quat(input.orientation);
-            // input.orientation = q_v * prev_quat;
-            input.orientation = glm::quat(1.0, 0.0, 0.0, 0.0);       
-
-
-            // input.manual_offset = positionToRobotFrame(input.manual_offset);
-            // input.orientation = orientationToRobotFrame(input.orientation);
+            // q_v is nan when there is no change
+            if (!std::isnan(q_v.w)) { 
+                input.cur_ee_orient = quaternionMultiplication(q_v, input.prev_ee_orient);
+                input.out_orient = orientationToUR5Frame(input.cur_ee_orient);
+            }
         }
 
         input.prev_raw_pos = cur_raw_pos;
         input.prev_ee_pos = input.cur_ee_pos;
-        input.prev_orient = cur_raw_orient;
+        input.prev_raw_orient = cur_raw_orient;
+        input.prev_ee_orient = input.cur_ee_orient;
 
-        // printText(input.to_str());
+        printText(input.to_str());
 
         publishRobotData();
 
@@ -376,16 +368,18 @@ namespace vive_input {
     void App::publishRobotData()
     {
         EEPoseGoals goal;
+        // End-effector pose goal
         Pose pose;
         pose.position.x = input.out_pos.x;
         pose.position.y = input.out_pos.y;
         pose.position.z = input.out_pos.z;
 
-        pose.orientation.x = input.orientation.x;
-        pose.orientation.y = input.orientation.y;
-        pose.orientation.z = input.orientation.z;
-        pose.orientation.w = input.orientation.w;
+        pose.orientation.x = input.out_orient.x;
+        pose.orientation.y = input.out_orient.y;
+        pose.orientation.z = input.out_orient.z;
+        pose.orientation.w = input.out_orient.w;
 
+        // Camera pose goal
         Pose pose_cam;
         // pose_cam.position.x = input.position.x;
         // pose_cam.position.y = input.position.y;
@@ -396,9 +390,8 @@ namespace vive_input {
         pose_cam.orientation.z = 0.0;
         pose_cam.orientation.w = 1.0;
 
-
+        // Sawyer head pose goal
         Pose pose_head;
-
         pose_head.orientation.x = 0.0;
         pose_head.orientation.y = 0.0;
         pose_head.orientation.z = 0.0;

@@ -31,17 +31,15 @@ namespace vive_input
     struct Input
     {
         glm::vec3 prev_raw_pos, prev_ee_pos, cur_ee_pos, out_pos;
-        glm::quat init_raw_orient, inverse_init_raw_orient, orientation;
-        glm::quat prev_orient;
-        glm::vec3 clutch_offset, manual_offset;
+        glm::quat prev_raw_orient, prev_ee_orient, cur_ee_orient, out_orient;
         Switch grabbing, reset, clutching, manual_adj;
         bool initialized;
 
-        Input() : orientation(1.0, 0.0, 0.0, 0.0)
+        Input() : out_orient(1.0, 0.0, 0.0, 0.0)
         {
             grabbing = Switch(true, Switch::Type::SINGLE);
             reset = Switch(false, Switch::Type::HOLD);
-            clutching = Switch(false, Switch::Type::SINGLE);
+            clutching = Switch(true, Switch::Type::SINGLE);
             manual_adj = Switch(false, Switch::Type::HOLD);
         }
 
@@ -49,7 +47,7 @@ namespace vive_input
         {
             std::string content;
             content  = "Position: " + glm::to_string(out_pos) + "\n";
-            content += "Orientation: " + glm::to_string(orientation) + "\n";
+            content += "Orientation: " + glm::to_string(out_orient) + "\n";
             content += "Manual Adj: " + manual_adj.to_str();
             content +=  "\t" + glm::to_string(manual_offset) + "\n";
             content += "Grab: " + grabbing.to_str() + "\n";
