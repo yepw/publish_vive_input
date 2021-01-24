@@ -145,7 +145,7 @@ namespace vive_input {
         const float dist_step = 0.005;
 
         static float cur_outer_cone = M_PI / 3.0;
-        static float cur_distance = 0.75;
+        static float cur_distance = 0.55;
 
         cv_bridge::CvImageConstPtr raw_img;
         cv::Mat img;
