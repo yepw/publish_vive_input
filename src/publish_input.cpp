@@ -170,7 +170,7 @@ namespace vive_input {
 
         float step = 0.01; // Step in radians
         if (marker_corners.size() > 0) { // Markers are visible
-            cv::aruco::drawDetectedMarkers(img, marker_corners, marker_ids);
+            // cv::aruco::drawDetectedMarkers(img, marker_corners, marker_ids);
 
             if (cur_outer_cone < max_cone_rad) {
                 cur_outer_cone += cone_step;
@@ -206,8 +206,8 @@ namespace vive_input {
         outer_cone_pub.publish(outer_cone);
         distance_pub.publish(distance);
 
-        cv::imshow("Test", img);
-        cv::waitKey(25);
+        // cv::imshow("Test", img);
+        // cv::waitKey(25);
     }
 
     inline glm::quat quaternionDisplacement(const glm::quat &q1, const glm::quat &q2)
