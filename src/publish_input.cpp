@@ -1,6 +1,7 @@
 #include <netinet/in.h>
 #include <poll.h>
 #include <thread>
+#include <math.h>
 
 // OpenCV
 #include <opencv2/opencv.hpp>
@@ -17,6 +18,7 @@
 #include <geometry_msgs/Pose.h>
 #include <tf2_ros/transform_listener.h>
 #include <geometry_msgs/TransformStamped.h>
+#include <std_msgs/Float64.h>
 #include <relaxed_ik/EEPoseGoals.h>
 
 #include <glm/vec3.hpp>
@@ -31,6 +33,7 @@
 using json = nlohmann::json;
 using Bool = std_msgs::Bool;
 using Pose = geometry_msgs::Pose;
+using Float64 = std_msgs::Float64;
 using EEPoseGoals = relaxed_ik::EEPoseGoals;
 using App = vive_input::App;
 
@@ -95,8 +98,10 @@ namespace vive_input {
         // Init ROS
         ros::NodeHandle n;
         ee_pub = n.advertise<relaxed_ik::EEPoseGoals>("/relaxed_ik/ee_pose_goals", 1000);
-        grasper_pub = n.advertise<std_msgs::Bool>("/relaxed_ik/grasper_state", 1000);
-        cam_sub = n.subscribe("/cam/dyn_image", 10, App::evaluateVisibility);
+        grasper_pub = n.advertise<Bool>("/relaxed_ik/grasper_state", 1000);
+        outer_cone_pub = n.advertise<Float64>("/relaxed_ik/outer_cone", 1000);
+        distance_pub = n.advertise<Float64>("/relaxed_ik/ee_distance", 1000);
+        cam_sub = n.subscribe("/cam/dyn_image", 10, &App::evaluateVisibility, this);
 
         // Init sockets
 
@@ -131,6 +136,17 @@ namespace vive_input {
 
     void App::evaluateVisibility(const sensor_msgs::ImageConstPtr image)
     {
+        const float max_cone_rad = M_PI_2;
+        const float min_cone_rad = M_PI / 10.0;
+        const float max_distance = 0.85;
+        const float min_distance = 0.45;
+        
+        const float cone_step = 0.01;
+        const float dist_step = 0.005;
+
+        static float cur_outer_cone = M_PI / 3.0;
+        static float cur_distance = 0.75;
+
         cv_bridge::CvImageConstPtr raw_img;
         cv::Mat img;
         try
@@ -152,9 +168,43 @@ namespace vive_input {
 
         cv::aruco::detectMarkers(img, ar_dict, marker_corners, marker_ids, detect_params);
 
-        if (marker_corners.size() > 0) { 
+        float step = 0.01; // Step in radians
+        if (marker_corners.size() > 0) { // Markers are visible
             cv::aruco::drawDetectedMarkers(img, marker_corners, marker_ids);
+
+            if (cur_outer_cone < max_cone_rad) {
+                cur_outer_cone += cone_step;
+            }
+
+            if (cur_distance < max_distance) {
+                cur_distance += dist_step;
+            }
         }
+        else { // Markers are not visible
+            if (cur_outer_cone > min_cone_rad) {
+                cur_outer_cone -= cone_step;
+
+                if (cur_outer_cone < min_cone_rad) {
+                    cur_outer_cone = min_cone_rad;
+                }
+            }
+
+            if (cur_outer_cone == min_cone_rad) {
+                cur_distance -= dist_step;
+
+                if (cur_distance < min_distance) {
+                    cur_distance = min_distance;
+                }
+            }
+        }
+
+        Float64 outer_cone;
+        outer_cone.data = cur_outer_cone;
+        Float64 distance;
+        distance.data = cur_distance;
+
+        outer_cone_pub.publish(outer_cone);
+        distance_pub.publish(distance);
 
         cv::imshow("Test", img);
         cv::waitKey(25);
@@ -334,6 +384,7 @@ namespace vive_input {
             geometry_msgs::Quaternion cam_quat(base_to_cam.transform.rotation);
             glm::quat cam_glm_quat(cam_quat.w, cam_quat.x, cam_quat.y, cam_quat.z);
             glm::mat3 cam_rot_mat(glm::mat3_cast(cam_glm_quat));
+            // std::cout << "Mat: " << glm::to_string(cam_rot_mat) << std::endl;
 
             // Calculate new position
             glm::vec3 input_vel(cur_raw_pos - input.prev_raw_pos);

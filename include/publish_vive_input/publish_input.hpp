@@ -85,10 +85,12 @@ namespace vive_input
         // ROS
         ros::Publisher ee_pub;
         ros::Publisher grasper_pub;
+        ros::Publisher outer_cone_pub;
+        ros::Publisher distance_pub;
         ros::Subscriber cam_sub;
         ros::AsyncSpinner spinner;
 
-        static void evaluateVisibility(const sensor_msgs::ImageConstPtr image);
+        void evaluateVisibility(const sensor_msgs::ImageConstPtr image);
 
         bool init();
         void resetPose(glm::vec3 pos, glm::quat quat);
