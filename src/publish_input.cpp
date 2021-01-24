@@ -138,7 +138,7 @@ namespace vive_input {
     {
         const float max_cone_rad = M_PI_2;
         const float min_cone_rad = M_PI / 10.0;
-        const float max_distance = 0.85;
+        const float max_distance = 0.60;
         const float min_distance = 0.45;
         
         const float cone_step = 0.01;
