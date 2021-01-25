@@ -136,16 +136,16 @@ namespace vive_input {
 
     void App::evaluateVisibility(const sensor_msgs::ImageConstPtr image)
     {
-        const float max_cone_rad = M_PI_2;
-        const float min_cone_rad = M_PI / 10.0;
-        const float max_distance = 0.60;
+        const float max_cone_rad = (2.0 * M_PI) / 3.0;
+        const float min_cone_rad = M_PI / 6;
+        const float max_distance = 1.50;
         const float min_distance = 0.45;
         
         const float cone_step = 0.01;
         const float dist_step = 0.005;
 
         static float cur_outer_cone = M_PI / 3.0;
-        static float cur_distance = 0.55;
+        static float cur_distance = 0.8;
 
         cv_bridge::CvImageConstPtr raw_img;
         cv::Mat img;
@@ -243,9 +243,19 @@ namespace vive_input {
         return prev_p + r_cam*input_vel;
     }
 
+    glm::vec3 rotatePositionByQuaternion(glm::vec3 pos, glm::quat q)
+    {
+        glm::quat q_inverse(glm::inverse(q));
+        glm::quat p(0.0, pos.x, pos.y, pos.z);
+        glm::quat p_prime((q * p) * q_inverse);
+
+        return glm::vec3(p_prime.x, p_prime.y, p_prime.z);
+    }
+
+
     glm::vec3 positionToUR5Frame(glm::vec3 v)
     {
-        return glm::vec3(v.y, v.x, -v.z);
+        return glm::vec3(v.x, -v.z, v.y);
     }
 
     glm::quat orientationToUR5Frame(glm::quat q)
@@ -259,9 +269,11 @@ namespace vive_input {
     void App::resetPose(glm::vec3 new_pos, glm::quat new_orient)
     {
         input.prev_raw_pos = new_pos;
-        input.prev_ee_pos = glm::vec3(); // Reset to zero
+        input.prev_ee_pos = glm::vec3(0.0, 0.0, 0.0);
         input.prev_raw_orient = new_orient;
         input.prev_ee_orient = glm::quat(1.0, 0.0, 0.0, 0.0);
+
+        input.init_raw_orient = new_orient;
     }
 
     void App::handleControllerInput(std::string data)
@@ -383,11 +395,13 @@ namespace vive_input {
             // Convert transform to glm mat3
             geometry_msgs::Quaternion cam_quat(base_to_cam.transform.rotation);
             glm::quat cam_glm_quat(cam_quat.w, cam_quat.x, cam_quat.y, cam_quat.z);
-            glm::mat3 cam_rot_mat(glm::mat3_cast(cam_glm_quat));
+            // glm::mat3 cam_rot_mat(glm::mat3_cast(cam_glm_quat));
+            glm::mat3 cam_rot_mat(1.0);
             // std::cout << "Mat: " << glm::to_string(cam_rot_mat) << std::endl;
 
             // Calculate new position
             glm::vec3 input_vel(cur_raw_pos - input.prev_raw_pos);
+
             input.cur_ee_pos = updatePosition(input.prev_ee_pos, input_vel, cam_rot_mat);
             input.out_pos = positionToUR5Frame(input.cur_ee_pos);
 
@@ -398,6 +412,7 @@ namespace vive_input {
             if (!std::isnan(q_v.w)) { 
                 input.cur_ee_orient = quaternionMultiplication(q_v, input.prev_ee_orient);
                 input.out_orient = orientationToUR5Frame(input.cur_ee_orient);
+                // input.out_orient = glm::quat(1.0, 0.0, 0.0, 0.0);
             }
         }
 
