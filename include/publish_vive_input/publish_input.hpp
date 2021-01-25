@@ -87,6 +87,7 @@ namespace vive_input
         // ROS
         ros::Publisher ee_pub;
         ros::Publisher grasper_pub;
+        ros::Publisher clutching_pub;
         ros::Publisher outer_cone_pub;
         ros::Publisher distance_pub;
         ros::Subscriber cam_sub;

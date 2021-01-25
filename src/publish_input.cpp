@@ -99,6 +99,7 @@ namespace vive_input {
         ros::NodeHandle n;
         ee_pub = n.advertise<relaxed_ik::EEPoseGoals>("/relaxed_ik/ee_pose_goals", 1000);
         grasper_pub = n.advertise<Bool>("/relaxed_ik/grasper_state", 1000);
+        clutching_pub = n.advertise<Bool>("/relaxed_ik/clutching_state", 1000);
         outer_cone_pub = n.advertise<Float64>("/relaxed_ik/outer_cone", 1000);
         distance_pub = n.advertise<Float64>("/relaxed_ik/ee_distance", 1000);
         cam_sub = n.subscribe("/cam/dyn_image", 10, &App::evaluateVisibility, this);
@@ -335,23 +336,24 @@ namespace vive_input {
                         input.manual_offset.x = (*button)["2d"]["x"];
                         input.manual_offset.y = (*button)["2d"]["y"];
 
-                        if (!input.clutching.is_on() && input.manual_adj.confirm_flip_on()) {
-                            if (input.manual_offset.x >= 0.5) {
-                                out_msg["primary_next"] = true;
-                            }
-                            else if (input.manual_offset.x <= -0.5) {
-                                out_msg["primary_prev"] = true;
-                            }
-                            else if (input.manual_offset.y >= 0.5) {
-                                out_msg["pip_prev"] = true;
-                            }
-                            else if (input.manual_offset.y <= -0.5) {
-                                out_msg["pip_next"] = true;
-                            }
-                            else {
-                                out_msg["pip_toggle"] = true;
-                            }
-                        }
+                        // Available commands when not in clutching mode
+                        // if (!input.clutching.is_on() && input.manual_adj.confirm_flip_on()) {
+                        //     if (input.manual_offset.x >= 0.5) {
+                        //         out_msg["primary_next"] = true;
+                        //     }
+                        //     else if (input.manual_offset.x <= -0.5) {
+                        //         out_msg["primary_prev"] = true;
+                        //     }
+                        //     else if (input.manual_offset.y >= 0.5) {
+                        //         out_msg["pip_prev"] = true;
+                        //     }
+                        //     else if (input.manual_offset.y <= -0.5) {
+                        //         out_msg["pip_next"] = true;
+                        //     }
+                        //     else {
+                        //         out_msg["pip_toggle"] = true;
+                        //     }
+                        // }
                     }   break;
                 
                     default:
@@ -472,10 +474,12 @@ namespace vive_input {
         ee_pub.publish(goal);
 
 
-        Bool grabbing;
+        Bool grabbing, clutching;
         grabbing.data = input.grabbing.is_on();
+        clutching.data = input.clutching.is_on();
 
-        grasper_pub.publish(grabbing);        
+        grasper_pub.publish(grabbing);
+        clutching_pub.publish(clutching);        
     }
 
 
