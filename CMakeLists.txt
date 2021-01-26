@@ -64,7 +64,7 @@ include_directories(
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/publish_vive_input_node.cpp)
 
-add_compile_definitions(GLM_ENABLE_EXPERIMENTAL)
+add_definitions(-D GLM_ENABLE_EXPERIMENTAL)
 
 add_executable(publish_input
     src/publish_input.cpp
