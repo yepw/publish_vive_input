@@ -89,6 +89,7 @@ namespace vive_input
         ros::Publisher grasper_pub;
         ros::Publisher clutching_pub;
         ros::Publisher outer_cone_pub;
+        ros::Publisher inner_cone_pub;
         ros::Publisher distance_pub;
         ros::Subscriber cam_sub;
         ros::AsyncSpinner spinner;

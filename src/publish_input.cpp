@@ -101,6 +101,7 @@ namespace vive_input {
         grasper_pub = n.advertise<Bool>("/relaxed_ik/grasper_state", 1000);
         clutching_pub = n.advertise<Bool>("/relaxed_ik/clutching_state", 1000);
         outer_cone_pub = n.advertise<Float64>("/relaxed_ik/outer_cone", 1000);
+        inner_cone_pub = n.advertise<Float64>("/relaxed_ik/inner_cone", 1000);
         distance_pub = n.advertise<Float64>("/relaxed_ik/ee_distance", 1000);
         cam_sub = n.subscribe("/cam/dyn_image", 10, &App::evaluateVisibility, this);
 
@@ -139,9 +140,9 @@ namespace vive_input {
     {
         const float max_cone_rad = (2.0 * M_PI) / 3.0;
         const float min_cone_rad = M_PI / 6;
-        const float max_distance = 1.50;
+        const float max_distance = 1.20;
         const float min_distance = 0.45;
-        
+
         const float cone_step = 0.01;
         const float dist_step = 0.005;
 
@@ -201,10 +202,13 @@ namespace vive_input {
 
         Float64 outer_cone;
         outer_cone.data = cur_outer_cone;
+        Float64 inner_cone;
+        inner_cone.data = min_cone_rad;
         Float64 distance;
         distance.data = cur_distance;
 
         outer_cone_pub.publish(outer_cone);
+        inner_cone_pub.publish(inner_cone);
         distance_pub.publish(distance);
 
         // cv::imshow("Test", img);
