@@ -19,6 +19,7 @@
 #include <tf2_ros/transform_listener.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <std_msgs/Float64.h>
+#include <std_msgs/Float64MultiArray.h>
 #include <relaxed_ik/EEPoseGoals.h>
 
 #include <glm/vec3.hpp>
@@ -101,8 +102,10 @@ namespace vive_input {
         grasper_pub = n.advertise<Bool>("/relaxed_ik/grasper_state", 1000);
         clutching_pub = n.advertise<Bool>("/relaxed_ik/clutching_state", 1000);
         outer_cone_pub = n.advertise<Float64>("/relaxed_ik/outer_cone", 1000);
-        inner_cone_pub = n.advertise<Float64>("/relaxed_ik/inner_cone", 1000);
+        // inner_cone_pub = n.advertise<Float64>("/relaxed_ik/inner_cone", 1000);
         distance_pub = n.advertise<Float64>("/relaxed_ik/ee_distance", 1000);
+        
+        rot_mat_sub = n.subscribe("/relaxed_ik/cam_rot_matrix", 10, &App::camRotationMatrixCallback, this);
         cam_sub = n.subscribe("/cam/dyn_image", 10, &App::evaluateVisibility, this);
 
         // Init sockets
@@ -134,6 +137,13 @@ namespace vive_input {
         std::string data = sock.buffer;
 
         return data;
+    }
+
+    void App::camRotationMatrixCallback(std_msgs::Float64MultiArrayConstPtr msg)
+    {
+        input.cam_rot_mat = glm::mat3(msg->data[0], msg->data[1], msg->data[2],
+                                msg->data[3], msg->data[4], msg->data[5],
+                                msg->data[6], msg->data[7], msg->data[8]);
     }
 
     void App::evaluateVisibility(const sensor_msgs::ImageConstPtr image)
@@ -202,13 +212,13 @@ namespace vive_input {
 
         Float64 outer_cone;
         outer_cone.data = cur_outer_cone;
-        Float64 inner_cone;
-        inner_cone.data = min_cone_rad;
+        // Float64 inner_cone;
+        // inner_cone.data = min_cone_rad;
         Float64 distance;
         distance.data = cur_distance;
 
         outer_cone_pub.publish(outer_cone);
-        inner_cone_pub.publish(inner_cone);
+        // inner_cone_pub.publish(inner_cone);
         distance_pub.publish(distance);
 
         // cv::imshow("Test", img);
@@ -260,12 +270,14 @@ namespace vive_input {
 
     glm::vec3 positionToUR5Frame(glm::vec3 v)
     {
-        return glm::vec3(v.x, -v.z, v.y);
+        // return glm::vec3(v.x, -v.z, v.y);
+        return glm::vec3(-v.z, v.x, -v.y);
     }
 
     glm::quat orientationToUR5Frame(glm::quat q)
     {
-        glm::vec3 new_euler(glm::yaw(q), glm::pitch(q), -glm::roll(q));
+        // glm::vec3 new_euler(glm::yaw(q), glm::pitch(q), -glm::roll(q));
+        glm::vec3 new_euler(glm::pitch(q), glm::yaw(q), glm::roll(q));
         glm::quat new_quat = glm::quat(new_euler);
 
         return new_quat;
@@ -384,40 +396,42 @@ namespace vive_input {
 
         // Publish the pose as normal
         if (!input.clutching.is_on() && !input.reset.is_on()) {
-            // Get the transform from the Sawyer (cam robot) base to the end-effector
-            bool transform_found(false);
-            geometry_msgs::TransformStamped base_to_cam;
-            while (!transform_found)
-            {
-                try {
-                    base_to_cam = tf_buffer.lookupTransform("base", "right_hand", ros::Time(0));
-                    transform_found = true;
-                }
-                catch (tf2::TransformException &ex) {
-                    // ROS_WARN("%s",ex.what());
-                }
-            }
+            // // Get the transform from the Sawyer (cam robot) base to the end-effector
+            // bool transform_found(false);
+            // geometry_msgs::TransformStamped base_to_cam;
+            // while (!transform_found)
+            // {
+            //     try {
+            //         base_to_cam = tf_buffer.lookupTransform("base", "right_hand", ros::Time(0));
+            //         transform_found = true;
+            //     }
+            //     catch (tf2::TransformException &ex) {
+            //         // ROS_WARN("%s",ex.what());
+            //     }
+            // }
 
-            // Convert transform to glm mat3
-            geometry_msgs::Quaternion cam_quat(base_to_cam.transform.rotation);
-            glm::quat cam_glm_quat(cam_quat.w, cam_quat.x, cam_quat.y, cam_quat.z);
-            // glm::mat3 cam_rot_mat(glm::mat3_cast(cam_glm_quat));
-            glm::mat3 cam_rot_mat(1.0);
-            // std::cout << "Mat: " << glm::to_string(cam_rot_mat) << std::endl;
+            // // Convert transform to glm mat3
+            // geometry_msgs::Quaternion cam_quat(base_to_cam.transform.rotation);
+            // glm::quat cam_glm_quat(cam_quat.w, cam_quat.x, cam_quat.y, cam_quat.z);
+            // // glm::mat3 cam_rot_mat(glm::mat3_cast(cam_glm_quat));
+            // glm::mat3 cam_rot_mat(1.0);
+            // // std::cout << "Mat: " << glm::to_string(cam_rot_mat) << std::endl;
 
             // Calculate new position
             glm::vec3 input_vel(cur_raw_pos - input.prev_raw_pos);
 
-            input.cur_ee_pos = updatePosition(input.prev_ee_pos, input_vel, cam_rot_mat);
+            input.cur_ee_pos = updatePosition(input.prev_ee_pos, input_vel, input.cam_rot_mat);
             input.out_pos = positionToUR5Frame(input.cur_ee_pos);
+            // input.out_pos = input.cur_ee_pos;
 
             // Calculate new orientation
             glm::quat q_v1(glm::normalize(rotateQuaternionByMatrix(input.prev_raw_orient, glm::mat3_cast(cur_raw_orient))));
-            glm::quat q_v(rotateQuaternionByMatrix(quaternionDisplacement(q_v1, cur_raw_orient), cam_rot_mat));
+            glm::quat q_v(rotateQuaternionByMatrix(quaternionDisplacement(q_v1, cur_raw_orient), input.cam_rot_mat));
             // q_v is nan when there is no change
             if (!std::isnan(q_v.w)) { 
                 input.cur_ee_orient = quaternionMultiplication(q_v, input.prev_ee_orient);
                 input.out_orient = orientationToUR5Frame(input.cur_ee_orient);
+                // input.out_orient = input.cur_ee_orient;
                 // input.out_orient = glm::quat(1.0, 0.0, 0.0, 0.0);
             }
         }
@@ -427,6 +441,7 @@ namespace vive_input {
         input.prev_raw_orient = cur_raw_orient;
         input.prev_ee_orient = input.cur_ee_orient;
 
+        std::cout << "Rot_mat: " << glm::to_string(input.cam_rot_mat) << std::endl;
         printText(input.to_str());
 
         publishRobotData();

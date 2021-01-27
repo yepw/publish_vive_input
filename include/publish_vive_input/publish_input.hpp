@@ -7,6 +7,7 @@
 
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
+#include <glm/mat3x3.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <glm/gtx/string_cast.hpp>
@@ -34,11 +35,13 @@ namespace vive_input
         glm::quat prev_raw_orient, prev_ee_orient, cur_ee_orient, out_orient;
         glm::quat init_raw_orient;
         glm::vec3 manual_offset;
+        glm::mat3 cam_rot_mat;
         Switch grabbing, reset, clutching, manual_adj;
         bool initialized;
 
         Input() : initialized(false), out_orient(1.0, 0.0, 0.0, 0.0), cur_ee_pos(0.0, 0.0, 0.0),
-                cur_ee_orient(1.0, 0.0, 0.0, 0.0), init_raw_orient(1.0, 0.0, 0.0, 0.0)
+                cur_ee_orient(1.0, 0.0, 0.0, 0.0), init_raw_orient(1.0, 0.0, 0.0, 0.0),
+                out_pos(0.0, 0.0, 0.0), cam_rot_mat(1.0)
         {
             grabbing = Switch(true, Switch::Type::SINGLE);
             reset = Switch(false, Switch::Type::HOLD);
@@ -89,11 +92,13 @@ namespace vive_input
         ros::Publisher grasper_pub;
         ros::Publisher clutching_pub;
         ros::Publisher outer_cone_pub;
-        ros::Publisher inner_cone_pub;
+        // ros::Publisher inner_cone_pub;
         ros::Publisher distance_pub;
+        ros::Subscriber rot_mat_sub;
         ros::Subscriber cam_sub;
         ros::AsyncSpinner spinner;
 
+        void camRotationMatrixCallback(std_msgs::Float64MultiArrayConstPtr msg);
         void evaluateVisibility(const sensor_msgs::ImageConstPtr image);
 
         bool init();
