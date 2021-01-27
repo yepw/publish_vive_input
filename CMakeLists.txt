@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.10.2)
 project(publish_vive_input)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
@@ -45,6 +45,7 @@ catkin_package(
 ## Your package locations should be listed before other locations
 include_directories(
   include
+  include/glm
   ${catkin_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
 )
