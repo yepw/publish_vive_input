@@ -329,7 +329,7 @@ namespace vive_input {
 
                     case ContrCommands::GRAB:
                     {
-                        input.grabbing = (*button)["boolean"];
+                        input.grabbing = !((*button)["boolean"]);
                     }   break;
 
                     case ContrCommands::RESET:
