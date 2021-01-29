@@ -43,7 +43,7 @@ namespace vive_input
                 cur_ee_orient(1.0, 0.0, 0.0, 0.0), init_raw_orient(1.0, 0.0, 0.0, 0.0),
                 out_pos(0.0, 0.0, 0.0), cam_rot_mat(1.0)
         {
-            grabbing = Switch(true, Switch::Type::SINGLE);
+            grabbing = Switch(true, Switch::Type::HOLD);
             reset = Switch(false, Switch::Type::HOLD);
             clutching = Switch(true, Switch::Type::SINGLE);
             manual_adj = Switch(false, Switch::Type::HOLD);
