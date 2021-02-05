@@ -2,6 +2,9 @@
 #include <poll.h>
 #include <thread>
 #include <math.h>
+#include <sstream>
+#include <unistd.h>
+#include <termios.h>
 
 // OpenCV
 #include <opencv2/opencv.hpp>
@@ -102,7 +105,7 @@ namespace vive_input {
         grasper_pub = n.advertise<Bool>("/relaxed_ik/grasper_state", 1000);
         clutching_pub = n.advertise<Bool>("/relaxed_ik/clutching_state", 1000);
         outer_cone_pub = n.advertise<Float64>("/relaxed_ik/outer_cone", 1000);
-        // inner_cone_pub = n.advertise<Float64>("/relaxed_ik/inner_cone", 1000);
+        inner_cone_pub = n.advertise<Float64>("/relaxed_ik/inner_cone", 1000);
         distance_pub = n.advertise<Float64>("/relaxed_ik/ee_distance", 1000);
         
         rot_mat_sub = n.subscribe("/relaxed_ik/cam_rot_matrix", 10, &App::camRotationMatrixCallback, this);
@@ -150,14 +153,14 @@ namespace vive_input {
     {
         const float max_cone_rad = (2.0 * M_PI) / 3.0;
         const float min_cone_rad = M_PI / 6;
-        const float max_distance = 1.20;
+        const float max_distance = 1.00;
         const float min_distance = 0.45;
 
-        const float cone_step = 0.01;
-        const float dist_step = 0.005;
+        const float cone_step = 0.05;
+        const float dist_step = 0.01;
 
-        static float cur_outer_cone = M_PI / 3.0;
-        static float cur_distance = 0.8;
+        static float cur_outer_cone = M_PI / 2.0;
+        static float cur_distance = 1.0;
 
         cv_bridge::CvImageConstPtr raw_img;
         cv::Mat img;
@@ -212,13 +215,13 @@ namespace vive_input {
 
         Float64 outer_cone;
         outer_cone.data = cur_outer_cone;
-        // Float64 inner_cone;
-        // inner_cone.data = min_cone_rad;
+        Float64 inner_cone;
+        inner_cone.data = min_cone_rad;
         Float64 distance;
         distance.data = cur_distance;
 
         outer_cone_pub.publish(outer_cone);
-        // inner_cone_pub.publish(inner_cone);
+        inner_cone_pub.publish(inner_cone);
         distance_pub.publish(distance);
 
         // cv::imshow("Test", img);
@@ -502,6 +505,77 @@ namespace vive_input {
     }
 
 
+    void App::handleKeyboardInput(int command)
+    {
+        switch (command)
+        {
+            case 'q':
+            {
+                printText("Shutting down...");
+                ros::requestShutdown();
+                shutting_down = true;
+            }   break;
+
+            case 27: // An arrow key was pressed
+            {
+                if (std::getchar() != 91) { // Arrows are a three-char sequence: 27 91 6[5-8]
+                    printText("Unexpected input");
+                    break;
+                }
+
+                switch (std::getchar())
+                {
+                    case 65: // Up arrow
+                    {
+                        std::cout << "Up" << std::endl;                        
+                    }   break;
+
+                    case 66: // Down arrow
+                    {
+                        std::cout << "Down" << std::endl;                        
+                    }   break;
+
+                    case 67: // Right arrow
+                    {
+                        std::cout << "Right" << std::endl;                        
+                    }   break;
+
+                    case 68: // Left arrow
+                    {
+                        std::cout << "Left" << std::endl;
+                    }   break;
+                }
+            }   break;
+            
+            default:
+            {
+                std::cout << command << std::endl;
+            }   break;
+        }
+    }
+
+    void App::getKeyboardInput()
+    {
+        termios term_io;
+        int command;
+
+        tcgetattr(STDIN_FILENO, &term_io); // Original terminal settings
+        term_io.c_lflag &= ~ICANON & ~ECHO; // Disable canonical mode (buffered I/O) and local echo
+        tcsetattr(STDIN_FILENO, TCSANOW, &term_io); // Set new settings
+
+        while (ros::ok())
+        {
+            command = std::getchar();
+            handleKeyboardInput(command);
+            if (shutting_down) break;
+        }
+
+        // Restore old settings
+        term_io.c_lflag |= ICANON | ECHO;
+        tcsetattr(STDIN_FILENO, TCSANOW, &term_io);
+    }
+
+
     int App::run()
     {
         if (!init()) {
@@ -513,6 +587,7 @@ namespace vive_input {
         poll_fds.events = POLLIN; // Wait until there's data to read
 
         spinner.start();
+        std::thread get_keyboard_input(&App::getKeyboardInput, this);
 
         while (ros::ok())
         {
@@ -522,6 +597,7 @@ namespace vive_input {
             }
         }
 
+        get_keyboard_input.join();
         spinner.stop();
 
         shutdown(in_socket.socket, SHUT_RDWR);

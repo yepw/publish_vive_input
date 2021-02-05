@@ -78,7 +78,7 @@ namespace vive_input
     class App
     {
     public:
-        App() : spinner(ros::AsyncSpinner(0)) {}
+        App() : spinner(ros::AsyncSpinner(0)), shutting_down(false) {}
 
         int run();
 
@@ -86,13 +86,14 @@ namespace vive_input
         Input input;
         Socket in_socket; // Raw Vive input data
         Socket out_socket; // Commands for interface
+        bool shutting_down;
 
         // ROS
         ros::Publisher ee_pub;
         ros::Publisher grasper_pub;
         ros::Publisher clutching_pub;
         ros::Publisher outer_cone_pub;
-        // ros::Publisher inner_cone_pub;
+        ros::Publisher inner_cone_pub;
         ros::Publisher distance_pub;
         ros::Subscriber rot_mat_sub;
         ros::Subscriber cam_sub;
@@ -105,6 +106,8 @@ namespace vive_input
         void resetPose(glm::vec3 pos, glm::quat quat);
         void handleControllerInput(std::string data);
         void publishRobotData();
+        void getKeyboardInput();
+        void handleKeyboardInput(int command);
     };
 
     bool initializeSocket(Socket &sock, bool incoming=true);
