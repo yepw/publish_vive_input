@@ -587,7 +587,7 @@ namespace vive_input {
         poll_fds.events = POLLIN; // Wait until there's data to read
 
         spinner.start();
-        std::thread get_keyboard_input(&App::getKeyboardInput, this);
+        // std::thread get_keyboard_input(&App::getKeyboardInput, this);
 
         while (ros::ok())
         {
@@ -597,7 +597,7 @@ namespace vive_input {
             }
         }
 
-        get_keyboard_input.join();
+        // get_keyboard_input.join();
         spinner.stop();
 
         shutdown(in_socket.socket, SHUT_RDWR);
