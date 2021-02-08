@@ -3,6 +3,7 @@
 
 #include <string>
 #include <ros/ros.h>
+#include <math.h>
 #include <netinet/in.h>
 
 #include <glm/vec3.hpp>
@@ -37,11 +38,16 @@ namespace vive_input
         glm::vec3 manual_offset;
         glm::mat3 cam_rot_mat;
         Switch grabbing, reset, clutching, manual_adj;
+        float cur_outer_cone, cur_distance;
         bool initialized;
+
+        const float kStartingOuterCone = M_PI_2;
+        const float kStartingDistance = 1.0;
 
         Input() : initialized(false), out_orient(1.0, 0.0, 0.0, 0.0), cur_ee_pos(0.0, 0.0, 0.0),
                 cur_ee_orient(1.0, 0.0, 0.0, 0.0), init_raw_orient(1.0, 0.0, 0.0, 0.0),
-                out_pos(0.0, 0.0, 0.0), cam_rot_mat(1.0)
+                out_pos(0.0, 0.0, 0.0), cam_rot_mat(1.0), cur_outer_cone(kStartingOuterCone), 
+                cur_distance(kStartingDistance)
         {
             grabbing = Switch(true, Switch::Type::HOLD);
             reset = Switch(false, Switch::Type::HOLD);

@@ -152,15 +152,12 @@ namespace vive_input {
     void App::evaluateVisibility(const sensor_msgs::ImageConstPtr image)
     {
         const float max_cone_rad = (2.0 * M_PI) / 3.0;
-        const float min_cone_rad = M_PI / 6;
+        const float min_cone_rad = M_PI / 5.0;
         const float max_distance = 1.00;
         const float min_distance = 0.45;
 
-        const float cone_step = 0.05;
-        const float dist_step = 0.01;
-
-        static float cur_outer_cone = M_PI / 2.0;
-        static float cur_distance = 1.0;
+        const float cone_step = 0.01;
+        const float dist_step = 0.005;
 
         cv_bridge::CvImageConstPtr raw_img;
         cv::Mat img;
@@ -187,38 +184,38 @@ namespace vive_input {
         if (marker_corners.size() > 0) { // Markers are visible
             // cv::aruco::drawDetectedMarkers(img, marker_corners, marker_ids);
 
-            if (cur_outer_cone < max_cone_rad) {
-                cur_outer_cone += cone_step;
+            if (input.cur_outer_cone < max_cone_rad) {
+                input.cur_outer_cone += cone_step;
             }
 
-            if (cur_distance < max_distance) {
-                cur_distance += dist_step;
+            if (input.cur_distance < max_distance) {
+                input.cur_distance += dist_step;
             }
         }
         else { // Markers are not visible
-            if (cur_outer_cone > min_cone_rad) {
-                cur_outer_cone -= cone_step;
+            if (input.cur_outer_cone > min_cone_rad) {
+                input.cur_outer_cone -= cone_step;
 
-                if (cur_outer_cone < min_cone_rad) {
-                    cur_outer_cone = min_cone_rad;
+                if (input.cur_outer_cone < min_cone_rad) {
+                    input.cur_outer_cone = min_cone_rad;
                 }
             }
 
-            if (cur_outer_cone == min_cone_rad) {
-                cur_distance -= dist_step;
+            if (input.cur_outer_cone == min_cone_rad) {
+                input.cur_distance -= dist_step;
 
-                if (cur_distance < min_distance) {
-                    cur_distance = min_distance;
+                if (input.cur_distance < min_distance) {
+                    input.cur_distance = min_distance;
                 }
             }
         }
 
         Float64 outer_cone;
-        outer_cone.data = cur_outer_cone;
+        outer_cone.data = input.cur_outer_cone;
         Float64 inner_cone;
         inner_cone.data = min_cone_rad;
         Float64 distance;
-        distance.data = cur_distance;
+        distance.data = input.cur_distance;
 
         outer_cone_pub.publish(outer_cone);
         inner_cone_pub.publish(inner_cone);
@@ -294,6 +291,9 @@ namespace vive_input {
         input.prev_ee_orient = glm::quat(1.0, 0.0, 0.0, 0.0);
 
         input.init_raw_orient = new_orient;
+
+        input.cur_outer_cone = input.kStartingOuterCone;
+        input.cur_distance = input.kStartingDistance;
     }
 
     void App::handleControllerInput(std::string data)
