@@ -107,7 +107,8 @@ namespace vive_input {
         outer_cone_pub = n.advertise<Float64>("/relaxed_ik/outer_cone", 1000);
         inner_cone_pub = n.advertise<Float64>("/relaxed_ik/inner_cone", 1000);
         distance_pub = n.advertise<Float64>("/relaxed_ik/ee_distance", 1000);
-        
+        toggle_pub = n.advertise<Bool>("/relaxed_ik/toggle", 1000);
+
         rot_mat_sub = n.subscribe("/relaxed_ik/cam_rot_matrix", 10, &App::camRotationMatrixCallback, this);
         cam_sub = n.subscribe("/cam/dyn_image", 10, &App::evaluateVisibility, this);
 
@@ -151,7 +152,7 @@ namespace vive_input {
 
     void App::evaluateVisibility(const sensor_msgs::ImageConstPtr image)
     {
-        const float max_cone_rad = (2.0 * M_PI) / 3.0;
+        const float max_cone_rad = M_PI_2;
         const float min_cone_rad = M_PI / 5.0;
         const float max_distance = 1.00;
         const float min_distance = 0.45;
@@ -270,7 +271,7 @@ namespace vive_input {
 
     glm::vec3 positionToUR5Frame(glm::vec3 v)
     {
-        // return glm::vec3(v.x, -v.z, v.y);
+        // return glm::vec3(v.x, v.y, v.z);
         return glm::vec3(-v.z, v.x, -v.y);
     }
 
@@ -278,7 +279,7 @@ namespace vive_input {
     {
         // glm::vec3 new_euler(glm::yaw(q), glm::pitch(q), -glm::roll(q));
         glm::vec3 new_euler(glm::pitch(q), glm::yaw(q), glm::roll(q));
-        glm::quat new_quat = glm::quat(new_euler);
+        glm::quat new_quat(glm::quat(new_euler));
 
         return new_quat;
     }
@@ -294,6 +295,8 @@ namespace vive_input {
 
         input.cur_outer_cone = input.kStartingOuterCone;
         input.cur_distance = input.kStartingDistance;
+
+        input.reset_cam = true;
     }
 
     void App::handleControllerInput(std::string data)
@@ -301,97 +304,148 @@ namespace vive_input {
         static tf2_ros::Buffer tf_buffer;
         static tf2_ros::TransformListener tf_listener(tf_buffer);
 
-        json j = json::parse(data);
+        json j(json::parse(data));
         json out_msg;
 
-        glm::vec3 cur_raw_pos;
+        glm::vec3 cur_raw_pos, cam_raw_pos;
+        glm::vec3 cur_cam_offset(0.0);
         glm::quat cur_raw_orient;
+        bool right_contr_active(false);
 
-        auto contr = j.begin(); // We only handle the first controller
-        for (json::iterator button = contr->begin(); button != contr->end(); button++)
-        {
-            if (button->is_object()) {
-                ContrCommands command(translateInputToCommand(button.key()));
+        for (json::iterator contr_it(j.begin()); contr_it != j.end(); ++contr_it) {
+            std::string controller(contr_it.key());
+            if (j[controller]["_role"] == "right") {
+                // --- Right controller - main control and commands ---
+                right_contr_active = true;
+                for (json::iterator button_it(contr_it->begin()); button_it != contr_it->end(); ++button_it) {
+                    if (button_it->is_object()) {
+                        std::string button(button_it.key());
+                        ContrCommands command(translateInputToCommand(button));
 
-                switch (command)
-                {
-                    case ContrCommands::POSE:
-                    {
-                        auto pos = (*button)["position"];
-                        cur_raw_pos = glm::vec3(pos["x"], pos["y"], pos["z"]);
+                        switch (command)
+                        {
+                            case ContrCommands::POSE:
+                            {
+                                auto pos = j[controller][button]["position"];
+                                cur_raw_pos = glm::vec3(pos["x"], pos["y"], pos["z"]);
 
-                        auto quat = (*button)["orientation"];
-                        cur_raw_orient = glm::normalize(glm::quat(quat["w"], quat["x"], quat["y"], quat["z"]));
+                                auto quat = j[controller][button]["orientation"];
+                                cur_raw_orient = glm::normalize(glm::quat(quat["w"], quat["x"], quat["y"], quat["z"]));
 
-                        if (!input.initialized) {
-                            resetPose(cur_raw_pos, cur_raw_orient);
-                            input.initialized = true;
+                                if (!input.initialized) {
+                                    resetPose(cur_raw_pos, cur_raw_orient);
+                                    input.initialized = true;
+                                }
+
+                            }   break;
+
+                            case ContrCommands::GRAB:
+                            {
+                                input.grabbing = !(j[controller][button]["boolean"]);
+                            }   break;
+
+                            case ContrCommands::RESET:
+                            {
+                                input.reset = j[controller][button]["boolean"];
+                                input.reset_cam = input.reset.is_on();
+                            }   break;
+
+                            case ContrCommands::CLUTCH:
+                            {
+                                input.clutching = j[controller][button]["boolean"];
+                            }   break;
+
+                            case ContrCommands::OFFSET:
+                            {
+                                input.toggle = j[controller][button]["boolean"];
+                                // input.manual_offset.x = j[controller][button]["2d"]["x"];
+                                // input.manual_offset.y = j[controller][button]["2d"]["y"];
+                                // input.manual_offset.z = 0.0;
+
+                                if (input.toggle.confirm_flip_on()) {
+                                    out_msg["toggle"] = true;
+
+                                    Bool toggle;
+                                    toggle.data = out_msg["toggle"];
+                                    toggle_pub.publish(toggle);
+                                }
+
+                                // Available commands when not in clutching mode
+                                // if (!input.clutching.is_on() && input.manual_adj.confirm_flip_on()) {
+                                //     if (input.manual_offset.x >= 0.5) {
+                                //         out_msg["primary_next"] = true;
+                                //     }
+                                //     else if (input.manual_offset.x <= -0.5) {
+                                //         out_msg["primary_prev"] = true;
+                                //     }
+                                //     else if (input.manual_offset.y >= 0.5) {
+                                //         out_msg["pip_prev"] = true;
+                                //     }
+                                //     else if (input.manual_offset.y <= -0.5) {
+                                //         out_msg["pip_next"] = true;
+                                //     }
+                                //     else {
+                                //         out_msg["pip_toggle"] = true;
+                                //     }
+                                // }
+                            }   break;
+                        
+                            default:
+                            {
+                                out_msg[button] = button_it.value();
+                            }   break;
                         }
+                    }
 
-                    }   break;
-
-                    case ContrCommands::GRAB:
-                    {
-                        input.grabbing = !((*button)["boolean"]);
-                    }   break;
-
-                    case ContrCommands::RESET:
-                    {
-                        input.reset = (*button)["boolean"];
-                    }   break;
-
-                    case ContrCommands::CLUTCH:
-                    {
-                        input.clutching = (*button)["boolean"];
-
-                        // if (input.clutching.confirm_flip()) {
-                        //     out_msg["clutching"] = input.clutching.is_on();
-                        // }
-                    }   break;
-
-                    case ContrCommands::OFFSET:
-                    {
-                        input.manual_adj = (*button)["boolean"];
-                        input.manual_offset.x = (*button)["2d"]["x"];
-                        input.manual_offset.y = (*button)["2d"]["y"];
-
-                        // Available commands when not in clutching mode
-                        // if (!input.clutching.is_on() && input.manual_adj.confirm_flip_on()) {
-                        //     if (input.manual_offset.x >= 0.5) {
-                        //         out_msg["primary_next"] = true;
-                        //     }
-                        //     else if (input.manual_offset.x <= -0.5) {
-                        //         out_msg["primary_prev"] = true;
-                        //     }
-                        //     else if (input.manual_offset.y >= 0.5) {
-                        //         out_msg["pip_prev"] = true;
-                        //     }
-                        //     else if (input.manual_offset.y <= -0.5) {
-                        //         out_msg["pip_next"] = true;
-                        //     }
-                        //     else {
-                        //         out_msg["pip_toggle"] = true;
-                        //     }
-                        // }
-                    }   break;
-                
-                    default:
-                    {
-                        out_msg[button.key()] = button.value();
-                    }   break;
                 }
+                // --- Right controller ---
+            }
+            else if (j[contr_it.key()]["_role"] == "left") {
+                // --- Left controller - camera adjustments ---
+                
+                for (json::iterator button_it(contr_it->begin()); button_it != contr_it->end(); ++button_it) {
+                    if (button_it->is_object()) {
+                        std::string button(button_it.key());
+                        ContrCommands command(translateInputToCommand(button));
+
+                        switch (command)
+                        {
+                            case ContrCommands::POSE:
+                            {
+                                auto pos = j[controller][button]["position"];
+                                cam_raw_pos = glm::vec3(pos["x"], pos["y"], pos["z"]);
+
+                                if (!input.cam_offset_init) {
+                                    input.cam_init_raw_pos = cam_raw_pos;
+                                    input.cam_offset_init = true;
+                                }
+
+                                cur_cam_offset = cam_raw_pos - input.cam_init_raw_pos;
+                            }   break;
+
+                            case ContrCommands::RESET:
+                            {
+                                input.reset_cam = (j[controller][button]["boolean"]);
+                            }   break;
+                        }
+                    }
+                }
+
+                if (input.reset_cam.confirm_flip_off()) {
+                    input.cam_init_raw_pos = cam_raw_pos;
+                }
+                // --- Left controller ---
             }
         }
 
+        // Since right controller is main, we need its pose data for useful input
+        if (!right_contr_active) {
+            return;
+        }
 
-        // if (input.clutching.is_flipping()) {
-        //     if (input.clutching.is_on()) { // When just turned on
-        //         // TODO: Add orientation handling
-        //     }
-        //     else {
-
-        //     }
-        // }
+        if (input.clutching.confirm_flip_off()) {
+            input.reset_cam = true;
+        }
 
         if (input.reset.confirm_flip_off()) {
             resetPose(cur_raw_pos, cur_raw_orient);
@@ -399,37 +453,29 @@ namespace vive_input {
 
         // Publish the pose as normal
         if (!input.clutching.is_on() && !input.reset.is_on()) {
-            // // Get the transform from the Sawyer (cam robot) base to the end-effector
-            // bool transform_found(false);
-            // geometry_msgs::TransformStamped base_to_cam;
-            // while (!transform_found)
-            // {
-            //     try {
-            //         base_to_cam = tf_buffer.lookupTransform("base", "right_hand", ros::Time(0));
-            //         transform_found = true;
-            //     }
-            //     catch (tf2::TransformException &ex) {
-            //         // ROS_WARN("%s",ex.what());
-            //     }
-            // }
-
-            // // Convert transform to glm mat3
-            // geometry_msgs::Quaternion cam_quat(base_to_cam.transform.rotation);
-            // glm::quat cam_glm_quat(cam_quat.w, cam_quat.x, cam_quat.y, cam_quat.z);
-            // // glm::mat3 cam_rot_mat(glm::mat3_cast(cam_glm_quat));
+            // Get the transform from the Sawyer (cam robot) base to the end-effector
             // glm::mat3 cam_rot_mat(1.0);
-            // // std::cout << "Mat: " << glm::to_string(cam_rot_mat) << std::endl;
+            glm::mat3 cam_rot_mat(input.cam_rot_mat);
+
+            // Calculate camera offset
+            input.camera_offset = cam_rot_mat * cur_cam_offset;
+
+            if (glm::length(input.camera_offset) > 0.1) {
+                input.camera_control = true;
+            }
+            else {
+                input.camera_control = false;
+            }
 
             // Calculate new position
             glm::vec3 input_vel(cur_raw_pos - input.prev_raw_pos);
-
-            input.cur_ee_pos = updatePosition(input.prev_ee_pos, input_vel, input.cam_rot_mat);
+            input.cur_ee_pos = updatePosition(input.prev_ee_pos, input_vel, cam_rot_mat);
             input.out_pos = positionToUR5Frame(input.cur_ee_pos);
             // input.out_pos = input.cur_ee_pos;
 
             // Calculate new orientation
             glm::quat q_v1(glm::normalize(rotateQuaternionByMatrix(input.prev_raw_orient, glm::mat3_cast(cur_raw_orient))));
-            glm::quat q_v(rotateQuaternionByMatrix(quaternionDisplacement(q_v1, cur_raw_orient), input.cam_rot_mat));
+            glm::quat q_v(rotateQuaternionByMatrix(quaternionDisplacement(q_v1, cur_raw_orient), cam_rot_mat));
             // q_v is nan when there is no change
             if (!std::isnan(q_v.w)) { 
                 input.cur_ee_orient = quaternionMultiplication(q_v, input.prev_ee_orient);
@@ -444,13 +490,13 @@ namespace vive_input {
         input.prev_raw_orient = cur_raw_orient;
         input.prev_ee_orient = input.cur_ee_orient;
 
-        std::cout << "Rot_mat: " << glm::to_string(input.cam_rot_mat) << std::endl;
+        // std::cout << "Rot_mat: " << glm::to_string(input.cam_rot_mat) << std::endl;
         printText(input.to_str());
 
         publishRobotData();
 
         if (!out_msg.is_null()) {
-            std::string output = out_msg.dump(3);
+            std::string output(out_msg.dump(3));
             send(out_socket.socket, output.c_str(), output.size(), 0);
         }
     }
@@ -471,14 +517,16 @@ namespace vive_input {
 
         // Camera pose goal
         Pose pose_cam;
-        pose_cam.position.x = 0.0;
-        pose_cam.position.y = 0.0;
-        pose_cam.position.z = 0.0;
-
-        pose_cam.orientation.x = 0.0;
-        pose_cam.orientation.y = 0.0;
-        pose_cam.orientation.z = 0.0;
-        pose_cam.orientation.w = 1.0;
+        if (input.camera_control) {
+            pose_cam.position.x = input.camera_offset.x;
+            pose_cam.position.y = input.camera_offset.y;
+            pose_cam.position.z = input.camera_offset.z;
+        }
+        else {
+            pose_cam.position.x = 0.0;
+            pose_cam.position.y = 0.0;
+            pose_cam.position.z = 0.0;
+        }
 
         // Sawyer head pose goal
         Pose pose_head;
