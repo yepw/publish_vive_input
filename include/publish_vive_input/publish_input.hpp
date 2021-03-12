@@ -92,6 +92,7 @@ namespace vive_input
         Input input;
         Socket in_socket; // Raw Vive input data
         Socket out_socket; // Commands for interface
+        Socket controller_socket; // Controller commands such as vibration
         bool shutting_down;
 
         // ROS
@@ -102,12 +103,21 @@ namespace vive_input
         ros::Publisher inner_cone_pub;
         ros::Publisher distance_pub;
         ros::Publisher toggle_pub;
+        ros::Publisher controller_raw_pub;
+        ros::Publisher keyboard_raw_pub;
+
         ros::Subscriber rot_mat_sub;
+        ros::Subscriber keyboard_input_sub;
         ros::Subscriber cam_sub;
+        ros::Subscriber collision_sub;
+
         ros::AsyncSpinner spinner;
 
-        void camRotationMatrixCallback(std_msgs::Float64MultiArrayConstPtr msg);
+        void camRotationMatrixCallback(std_msgs::Float32MultiArrayConstPtr msg);
+        void controlFrameMatrixCallback(std_msgs::Float32MultiArrayConstPtr msg);
+        void keyboardInputCallback(geometry_msgs::TwistConstPtr msg);
         void evaluateVisibility(const sensor_msgs::ImageConstPtr image);
+        void collisionsCallback(const std_msgs::String msg);
 
         bool init();
         void resetPose(glm::vec3 pos, glm::quat quat);
@@ -120,7 +130,8 @@ namespace vive_input
     bool initializeSocket(Socket &sock, bool incoming=true);
     std::string getSocketData(Socket &sock);
     inline glm::quat quaternionDisplacement(const glm::quat &q1, const glm::quat &quat2);
-    glm::quat rotateQuaternion(glm::quat q, glm::mat3 R);
+    glm::quat rotateQuaternionByMatrix(glm::quat q, glm::mat3 R);
+    inline glm::vec3 updatePosition(const glm::vec3 &prev_p, const glm::vec3 &input_vel, const glm::mat3 &r_cam);
     glm::vec3 rotatePositionByQuaternion(glm::vec3 pos, glm::quat q, glm::quat q_inverse);
     inline glm::vec3 positionToCameraFrame(const glm::vec3 &prev_p, const glm::vec3 &input_vel, const glm::mat3 &r_cam);
     glm::vec3 positionToUR5Frame(glm::vec3 v);

@@ -19,10 +19,12 @@
 #include <std_msgs/Bool.h>
 #include <sensor_msgs/Image.h>
 #include <geometry_msgs/Pose.h>
+#include <geometry_msgs/Twist.h>
 #include <tf2_ros/transform_listener.h>
 #include <geometry_msgs/TransformStamped.h>
-#include <std_msgs/Float64.h>
-#include <std_msgs/Float64MultiArray.h>
+#include <std_msgs/Float32.h>
+#include <std_msgs/Float32MultiArray.h>
+#include <std_msgs/String.h>
 #include <relaxed_ik/EEPoseGoals.h>
 
 #include <glm/vec3.hpp>
@@ -35,9 +37,6 @@
 #include "publish_vive_input/publish_input.hpp"
 
 using json = nlohmann::json;
-using Bool = std_msgs::Bool;
-using Pose = geometry_msgs::Pose;
-using Float64 = std_msgs::Float64;
 using EEPoseGoals = relaxed_ik::EEPoseGoals;
 using App = vive_input::App;
 
@@ -79,9 +78,9 @@ namespace vive_input {
         sock.address.sin_port = htons(sock.port);
 
         if (incoming) {
-            if (bind(sock.socket, (const sockaddr *)&sock.address, sizeof(sock.address)) < 0)
-            { 
-                printText("Socket binding failed."); 
+            if (bind(sock.socket, (const sockaddr *)&sock.address, sizeof(sock.address)) < 0) { 
+                printText("Socket binding failed.");
+                sock.socket = 0;
                 return false;
             }
         }
@@ -90,6 +89,7 @@ namespace vive_input {
                 std::string err_str = strerror(errno);
                 printText("Socket connection failed.");
                 printText("Error: " + err_str);
+                sock.socket = 0;
                 return false; 
             }
         }
@@ -101,22 +101,30 @@ namespace vive_input {
     {
         // Init ROS
         ros::NodeHandle n;
-        ee_pub = n.advertise<relaxed_ik::EEPoseGoals>("/relaxed_ik/ee_pose_goals", 1000);
-        grasper_pub = n.advertise<Bool>("/relaxed_ik/grasper_state", 1000);
-        clutching_pub = n.advertise<Bool>("/relaxed_ik/clutching_state", 1000);
-        outer_cone_pub = n.advertise<Float64>("/relaxed_ik/outer_cone", 1000);
-        inner_cone_pub = n.advertise<Float64>("/relaxed_ik/inner_cone", 1000);
-        distance_pub = n.advertise<Float64>("/relaxed_ik/ee_distance", 1000);
-        toggle_pub = n.advertise<Bool>("/relaxed_ik/toggle", 1000);
+        ee_pub = n.advertise<relaxed_ik::EEPoseGoals>("/relaxed_ik/ee_pose_goals", 10);
+        grasper_pub = n.advertise<std_msgs::Bool>("/robot_state/grasping", 10);
+        clutching_pub = n.advertise<std_msgs::Bool>("/robot_state/clutching", 10);
+        outer_cone_pub = n.advertise<std_msgs::Float32>("/relaxed_ik/outer_cone", 10);
+        inner_cone_pub = n.advertise<std_msgs::Float32>("/relaxed_ik/inner_cone", 10);
+        distance_pub = n.advertise<std_msgs::Float32>("/relaxed_ik/ee_distance", 10);
+        toggle_pub = n.advertise<std_msgs::Bool>("/relaxed_ik/toggle", 10);
+        controller_raw_pub = n.advertise<std_msgs::String>("/vive_input/raw", 10);
+        keyboard_raw_pub = n.advertise<geometry_msgs::Twist>("/keyboard_input/raw", 10);
+        // TODO: Add raw input publishing
+        // Add sub/pub for raw character input
 
-        rot_mat_sub = n.subscribe("/relaxed_ik/cam_rot_matrix", 10, &App::camRotationMatrixCallback, this);
+        // rot_mat_sub = n.subscribe("/relaxed_ik/cam_rot_matrix", 10, &App::camRotationMatrixCallback, this);
+        rot_mat_sub = n.subscribe("/viewpoint_interface/frame_matrix", 10, &App::controlFrameMatrixCallback, this);
+        keyboard_input_sub = n.subscribe("/keyboard_robot_control/input", 10, &App::keyboardInputCallback, this);
         cam_sub = n.subscribe("/cam/dyn_image", 10, &App::evaluateVisibility, this);
+        collision_sub = n.subscribe("/robot_state/collisions", 10, &App::collisionsCallback, this);
 
         // Init sockets
 
         // Make sure that this matches the Vive params file and that it's not
         // the same as the out port
         in_socket.port = 8081;
+        controller_socket.port = 8082;
 
         if (!initializeSocket(in_socket)) {
             return false;
@@ -125,6 +133,10 @@ namespace vive_input {
         if (!initializeSocket(out_socket, false)) {
             return false;
         }
+
+        // if (!initializeSocket(controller_socket, false)) {
+        //     printText("Unable to initialize vibration socket.");
+        // }
 
         return true;
     }
@@ -143,11 +155,57 @@ namespace vive_input {
         return data;
     }
 
-    void App::camRotationMatrixCallback(std_msgs::Float64MultiArrayConstPtr msg)
+    void App::collisionsCallback(const std_msgs::String msg)
+    {
+        if (!controller_socket.socket) {
+            return;
+        }
+
+        // TODO: Send message to interface
+
+        // Send vibration message to controller
+        send(controller_socket.socket, "v", 2, 0);
+    }
+
+    void App::camRotationMatrixCallback(std_msgs::Float32MultiArrayConstPtr msg)
     {
         input.cam_rot_mat = glm::mat3(msg->data[0], msg->data[1], msg->data[2],
                                 msg->data[3], msg->data[4], msg->data[5],
                                 msg->data[6], msg->data[7], msg->data[8]);
+    }
+
+    void App::controlFrameMatrixCallback(std_msgs::Float32MultiArrayConstPtr msg)
+    {
+        // Note: the incoming message is a 3x4 matrix, so we exclude the position column
+        input.cam_rot_mat = glm::mat3(msg->data[0], msg->data[1], msg->data[2],
+                        msg->data[4], msg->data[5], msg->data[6],
+                        msg->data[8], msg->data[9], msg->data[10]);
+    }
+
+    glm::vec3 positionToRelaxedIkFrame(glm::vec3 vec) {
+
+    }
+
+    void App::keyboardInputCallback(geometry_msgs::TwistConstPtr msg)
+    {
+        glm::vec3 input_change(msg->linear.x, msg->linear.y, msg->linear.z);
+        // glm::mat3 cam_rot_mat(input.cam_rot_mat);
+
+        // glm::mat3 adjusted_rot_mat = glm::mat3(cam_rot_mat[0][0], cam_rot_mat[0][1], cam_rot_mat[0][2],
+        //                                        cam_rot_mat[2][0], cam_rot_mat[2][1], cam_rot_mat[2][2],
+        //                                        cam_rot_mat[1][0], cam_rot_mat[1][1], cam_rot_mat[1][2]);
+        // cam_rot_mat = adjusted_rot_mat;
+
+        // std::cout << glm::to_string(cam_rot_mat) << std::endl;
+
+        glm::mat3 cam_rot_mat(1.0);
+        input.cur_ee_pos = updatePosition(input.prev_ee_pos, input_change, cam_rot_mat);   
+
+        input.prev_ee_pos = input.cur_ee_pos;
+        input.out_pos = input.cur_ee_pos;
+
+        printText(input.to_str());
+        publishRobotData();
     }
 
     void App::evaluateVisibility(const sensor_msgs::ImageConstPtr image)
@@ -211,11 +269,11 @@ namespace vive_input {
             }
         }
 
-        Float64 outer_cone;
+        std_msgs::Float32 outer_cone;
         outer_cone.data = input.cur_outer_cone;
-        Float64 inner_cone;
+        std_msgs::Float32 inner_cone;
         inner_cone.data = min_cone_rad;
-        Float64 distance;
+        std_msgs::Float32 distance;
         distance.data = input.cur_distance;
 
         outer_cone_pub.publish(outer_cone);
@@ -279,7 +337,7 @@ namespace vive_input {
     {
         // glm::vec3 new_euler(glm::yaw(q), glm::pitch(q), -glm::roll(q));
         glm::vec3 new_euler(glm::pitch(q), glm::yaw(q), glm::roll(q));
-        glm::quat new_quat(glm::quat(new_euler));
+        glm::quat new_quat(new_euler);
 
         return new_quat;
     }
@@ -365,7 +423,7 @@ namespace vive_input {
                                 if (input.toggle.confirm_flip_on()) {
                                     out_msg["toggle"] = true;
 
-                                    Bool toggle;
+                                    std_msgs::Bool toggle;
                                     toggle.data = out_msg["toggle"];
                                     toggle_pub.publish(toggle);
                                 }
@@ -453,7 +511,7 @@ namespace vive_input {
 
         // Publish the pose as normal
         if (!input.clutching.is_on() && !input.reset.is_on()) {
-            // Get the transform from the Sawyer (cam robot) base to the end-effector
+            // Get the camera pose matrix
             // glm::mat3 cam_rot_mat(1.0);
             glm::mat3 cam_rot_mat(input.cam_rot_mat);
 
@@ -505,7 +563,7 @@ namespace vive_input {
     {
         EEPoseGoals goal;
         // End-effector pose goal
-        Pose pose;
+        geometry_msgs::Pose pose;
         pose.position.x = input.out_pos.x;
         pose.position.y = input.out_pos.y;
         pose.position.z = input.out_pos.z;
@@ -516,7 +574,7 @@ namespace vive_input {
         pose.orientation.w = input.out_orient.w;
 
         // Camera pose goal
-        Pose pose_cam;
+        geometry_msgs::Pose pose_cam;
         if (input.camera_control) {
             pose_cam.position.x = input.camera_offset.x;
             pose_cam.position.y = input.camera_offset.y;
@@ -529,7 +587,7 @@ namespace vive_input {
         }
 
         // Sawyer head pose goal
-        Pose pose_head;
+        geometry_msgs::Pose pose_head;
         pose_head.orientation.x = 0.0;
         pose_head.orientation.y = 0.0;
         pose_head.orientation.z = 0.0;
@@ -544,7 +602,7 @@ namespace vive_input {
         ee_pub.publish(goal);
 
 
-        Bool grabbing, clutching;
+        std_msgs::Bool grabbing, clutching;
         grabbing.data = input.grabbing.is_on();
         clutching.data = input.clutching.is_on();
 
@@ -553,75 +611,75 @@ namespace vive_input {
     }
 
 
-    void App::handleKeyboardInput(int command)
-    {
-        switch (command)
-        {
-            case 'q':
-            {
-                printText("Shutting down...");
-                ros::requestShutdown();
-                shutting_down = true;
-            }   break;
+    // void App::handleKeyboardInput(int command)
+    // {
+    //     switch (command)
+    //     {
+    //         case 'q':
+    //         {
+    //             printText("Shutting down...");
+    //             ros::requestShutdown();
+    //             shutting_down = true;
+    //         }   break;
+    //
+    //         case 27: // An arrow key was pressed
+    //         {
+    //             if (std::getchar() != 91) { // Arrows are a three-char sequence: 27 91 6[5-8]
+    //                 printText("Unexpected input");
+    //                 break;
+    //             }
+    //
+    //             switch (std::getchar())
+    //             {
+    //                 case 65: // Up arrow
+    //                 {
+    //                     std::cout << "Up" << std::endl;                        
+    //                 }   break;
+    //
+    //                 case 66: // Down arrow
+    //                 {
+    //                     std::cout << "Down" << std::endl;                        
+    //                 }   break;
+    //
+    //                 case 67: // Right arrow
+    //                 {
+    //                     std::cout << "Right" << std::endl;                        
+    //                 }   break;
+    //
+    //                 case 68: // Left arrow
+    //                 {
+    //                     std::cout << "Left" << std::endl;
+    //                 }   break;
+    //             }
+    //         }   break;
+    //          
+    //         default:
+    //         {
+    //             std::cout << command << std::endl;
+    //         }   break;
+    //     }
+    // }
 
-            case 27: // An arrow key was pressed
-            {
-                if (std::getchar() != 91) { // Arrows are a three-char sequence: 27 91 6[5-8]
-                    printText("Unexpected input");
-                    break;
-                }
-
-                switch (std::getchar())
-                {
-                    case 65: // Up arrow
-                    {
-                        std::cout << "Up" << std::endl;                        
-                    }   break;
-
-                    case 66: // Down arrow
-                    {
-                        std::cout << "Down" << std::endl;                        
-                    }   break;
-
-                    case 67: // Right arrow
-                    {
-                        std::cout << "Right" << std::endl;                        
-                    }   break;
-
-                    case 68: // Left arrow
-                    {
-                        std::cout << "Left" << std::endl;
-                    }   break;
-                }
-            }   break;
-            
-            default:
-            {
-                std::cout << command << std::endl;
-            }   break;
-        }
-    }
-
-    void App::getKeyboardInput()
-    {
-        termios term_io;
-        int command;
-
-        tcgetattr(STDIN_FILENO, &term_io); // Original terminal settings
-        term_io.c_lflag &= ~ICANON & ~ECHO; // Disable canonical mode (buffered I/O) and local echo
-        tcsetattr(STDIN_FILENO, TCSANOW, &term_io); // Set new settings
-
-        while (ros::ok())
-        {
-            command = std::getchar();
-            handleKeyboardInput(command);
-            if (shutting_down) break;
-        }
-
-        // Restore old settings
-        term_io.c_lflag |= ICANON | ECHO;
-        tcsetattr(STDIN_FILENO, TCSANOW, &term_io);
-    }
+    // void App::getKeyboardInput()
+    // {
+    //     termios term_io;
+    //     int command;
+    //
+    //     tcgetattr(STDIN_FILENO, &term_io); // Original terminal settings
+    //     term_io.c_lflag &= ~ICANON & ~ECHO; // Disable canonical mode (buffered I/O) and local echo
+    //     tcsetattr(STDIN_FILENO, TCSANOW, &term_io); // Set new settings
+    //
+    //     while (ros::ok())
+    //     {
+    //         command = std::getchar();
+    //         handleKeyboardInput(command);
+    //         if (shutting_down) break;
+    //     }
+    //
+    //     // Restore old settings
+    //     term_io.c_lflag |= ICANON | ECHO;
+    //     tcsetattr(STDIN_FILENO, TCSANOW, &term_io);
+    // }
 
 
     int App::run()
@@ -640,7 +698,7 @@ namespace vive_input {
         while (ros::ok())
         {
             if (poll(&poll_fds, 1, LOOP_RATE) > 0) {
-                std::string input_data = getSocketData(in_socket);
+                std::string input_data(getSocketData(in_socket));
                 handleControllerInput(input_data);
             }
         }
@@ -650,6 +708,10 @@ namespace vive_input {
 
         shutdown(in_socket.socket, SHUT_RDWR);
         shutdown(out_socket.socket, SHUT_RDWR);
+        
+        // if (controller_socket.socket) {
+        //     shutdown(controller_socket.socket, SHUT_RDWR);
+        // }
 
         return 0;
     }
