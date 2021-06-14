@@ -19,13 +19,16 @@
 #include <std_msgs/Bool.h>
 #include <sensor_msgs/Image.h>
 #include <geometry_msgs/Pose.h>
-#include <geometry_msgs/Twist.h>
+#include <geometry_msgs/TwistStamped.h>
 #include <tf2_ros/transform_listener.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <std_msgs/Float32.h>
 #include <std_msgs/Float32MultiArray.h>
 #include <std_msgs/String.h>
 #include <relaxed_ik/EEPoseGoals.h>
+#include <publish_vive_input/ButtonInfo.h>
+#include <publish_vive_input/ControllerInfo.h>
+#include <publish_vive_input/ControllersInput.h>
 
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
@@ -38,6 +41,9 @@
 
 using json = nlohmann::json;
 using EEPoseGoals = relaxed_ik::EEPoseGoals;
+using ButtonInfo = publish_vive_input::ButtonInfo;
+using ControllerInfo = publish_vive_input::ControllerInfo;
+using ControllersInput = publish_vive_input::ControllersInput;
 using App = vive_input::App;
 
 #define LOOP_RATE 60
@@ -108,8 +114,9 @@ namespace vive_input {
         inner_cone_pub = n.advertise<std_msgs::Float32>("/relaxed_ik/inner_cone", 10);
         distance_pub = n.advertise<std_msgs::Float32>("/relaxed_ik/ee_distance", 10);
         toggle_pub = n.advertise<std_msgs::Bool>("/relaxed_ik/toggle", 10);
-        controller_raw_pub = n.advertise<std_msgs::String>("/vive_input/raw", 10);
-        keyboard_raw_pub = n.advertise<geometry_msgs::Twist>("/keyboard_input/raw", 10);
+        controller_raw_pub = n.advertise<ControllersInput>("/vive_input/raw_data", 10);
+        controller_raw_string_pub = n.advertise<std_msgs::String>("/vive_input/raw_string", 10);
+        keyboard_raw_pub = n.advertise<geometry_msgs::TwistStamped>("/keyboard_input/raw", 10);
         // TODO: Add raw input publishing
         // Add sub/pub for raw character input
 
@@ -167,45 +174,49 @@ namespace vive_input {
         send(controller_socket.socket, "v", 2, 0);
     }
 
-    void App::camRotationMatrixCallback(std_msgs::Float32MultiArrayConstPtr msg)
-    {
-        input.cam_rot_mat = glm::mat3(msg->data[0], msg->data[1], msg->data[2],
-                                msg->data[3], msg->data[4], msg->data[5],
-                                msg->data[6], msg->data[7], msg->data[8]);
-    }
+    // void App::camRotationMatrixCallback(std_msgs::Float32MultiArrayConstPtr msg)
+    // {
+    //     input.cam_rot_mat = glm::mat3(msg->data[0], msg->data[1], msg->data[2],
+    //                             msg->data[3], msg->data[4], msg->data[5],
+    //                             msg->data[6], msg->data[7], msg->data[8]);
+    // }
 
     void App::controlFrameMatrixCallback(std_msgs::Float32MultiArrayConstPtr msg)
     {
         // Note: the incoming message is a 3x4 matrix, so we exclude the position column
-        input.cam_rot_mat = glm::mat3(msg->data[0], msg->data[1], msg->data[2],
-                        msg->data[4], msg->data[5], msg->data[6],
-                        msg->data[8], msg->data[9], msg->data[10]);
+        input.cam_rot_mat = glm::transpose(glm::mat3(msg->data[2], msg->data[0], msg->data[1],
+                                      msg->data[6], msg->data[4], msg->data[5],
+                                      msg->data[10], msg->data[8], msg->data[9]));
+
+        // std::cout << glm::to_string(input.cam_rot_mat) << std::endl;
     }
 
-    glm::vec3 positionToRelaxedIkFrame(glm::vec3 vec) {
-
-    }
-
-    void App::keyboardInputCallback(geometry_msgs::TwistConstPtr msg)
+    void App::keyboardInputCallback(geometry_msgs::TwistStampedConstPtr msg)
     {
-        glm::vec3 input_change(msg->linear.x, msg->linear.y, msg->linear.z);
-        // glm::mat3 cam_rot_mat(input.cam_rot_mat);
+        // Calculate new position
+        glm::vec3 input_change(msg->twist.linear.x, msg->twist.linear.y, msg->twist.linear.z);
+        glm::mat3 cam_rot_mat(input.cam_rot_mat);
 
-        // glm::mat3 adjusted_rot_mat = glm::mat3(cam_rot_mat[0][0], cam_rot_mat[0][1], cam_rot_mat[0][2],
-        //                                        cam_rot_mat[2][0], cam_rot_mat[2][1], cam_rot_mat[2][2],
-        //                                        cam_rot_mat[1][0], cam_rot_mat[1][1], cam_rot_mat[1][2]);
-        // cam_rot_mat = adjusted_rot_mat;
-
-        // std::cout << glm::to_string(cam_rot_mat) << std::endl;
-
-        glm::mat3 cam_rot_mat(1.0);
         input.cur_ee_pos = updatePosition(input.prev_ee_pos, input_change, cam_rot_mat);   
 
         input.prev_ee_pos = input.cur_ee_pos;
         input.out_pos = input.cur_ee_pos;
 
+        // // Calculate new orientation
+        // glm::quat q_v1(glm::normalize(rotateQuaternionByMatrix(input.prev_raw_orient, glm::mat3_cast(cur_raw_orient))));
+        // glm::quat q_v(rotateQuaternionByMatrix(quaternionDisplacement(q_v1, cur_raw_orient), cam_rot_mat));
+        // // q_v is nan when there is no change
+        // if (!std::isnan(q_v.w)) { 
+        //     input.cur_ee_orient = quaternionMultiplication(q_v, input.prev_ee_orient);
+        // }
+
+        // input.prev_ee_orient = input.cur_ee_orient;
+
+
         printText(input.to_str());
         publishRobotData();
+
+        keyboard_raw_pub.publish(msg);
     }
 
     void App::evaluateVisibility(const sensor_msgs::ImageConstPtr image)
@@ -368,7 +379,11 @@ namespace vive_input {
         glm::vec3 cur_raw_pos, cam_raw_pos;
         glm::vec3 cur_cam_offset(0.0);
         glm::quat cur_raw_orient;
-        bool right_contr_active(false);
+        bool right_contr_active(false), left_contr_active(false);
+
+        ControllersInput contr_input;
+        ControllerInfo right_contr; right_contr.role = "right";
+        ControllerInfo left_contr; left_contr.role = "left";
 
         for (json::iterator contr_it(j.begin()); contr_it != j.end(); ++contr_it) {
             std::string controller(contr_it.key());
@@ -384,10 +399,10 @@ namespace vive_input {
                         {
                             case ContrCommands::POSE:
                             {
-                                auto pos = j[controller][button]["position"];
+                                auto pos(j[controller][button]["position"]);
                                 cur_raw_pos = glm::vec3(pos["x"], pos["y"], pos["z"]);
 
-                                auto quat = j[controller][button]["orientation"];
+                                auto quat(j[controller][button]["orientation"]);
                                 cur_raw_orient = glm::normalize(glm::quat(quat["w"], quat["x"], quat["y"], quat["z"]));
 
                                 if (!input.initialized) {
@@ -395,27 +410,55 @@ namespace vive_input {
                                     input.initialized = true;
                                 }
 
+                                right_contr.pose.position.x = cur_raw_pos.x;
+                                right_contr.pose.position.y = cur_raw_pos.y;
+                                right_contr.pose.position.z = cur_raw_pos.z;
+
+                                right_contr.pose.orientation.x = cur_raw_orient.x;
+                                right_contr.pose.orientation.y = cur_raw_orient.y;
+                                right_contr.pose.orientation.z = cur_raw_orient.z;
+                                right_contr.pose.orientation.w = cur_raw_orient.w;
+
                             }   break;
 
                             case ContrCommands::GRAB:
                             {
-                                input.grabbing = !(j[controller][button]["boolean"]);
+                                bool raw_input(j[controller][button]["boolean"]);
+                                input.grabbing = !raw_input;
+
+                                right_contr.button1.name = "grab";
+                                right_contr.button1.has_boolean = true;
+                                right_contr.button1.boolean = raw_input;
+
                             }   break;
 
                             case ContrCommands::RESET:
                             {
-                                input.reset = j[controller][button]["boolean"];
+                                bool raw_input(j[controller][button]["boolean"]);
+                                input.reset = raw_input;
                                 input.reset_cam = input.reset.is_on();
+
+                                right_contr.button2.name = "reset";
+                                right_contr.button2.has_boolean = true;
+                                right_contr.button2.boolean = raw_input;
+
                             }   break;
 
                             case ContrCommands::CLUTCH:
                             {
-                                input.clutching = j[controller][button]["boolean"];
+                                bool raw_input(j[controller][button]["boolean"]);
+                                input.clutching = raw_input;
+
+                                right_contr.button3.name = "clutch";
+                                right_contr.button3.has_boolean = true;
+                                right_contr.button3.boolean = raw_input;
+
                             }   break;
 
                             case ContrCommands::OFFSET:
                             {
-                                input.toggle = j[controller][button]["boolean"];
+                                bool raw_bool(j[controller][button]["boolean"]);
+                                input.toggle = raw_bool;
                                 // input.manual_offset.x = j[controller][button]["2d"]["x"];
                                 // input.manual_offset.y = j[controller][button]["2d"]["y"];
                                 // input.manual_offset.z = 0.0;
@@ -446,6 +489,11 @@ namespace vive_input {
                                 //         out_msg["pip_toggle"] = true;
                                 //     }
                                 // }
+
+                                right_contr.button4.name = "trackpad";
+                                right_contr.button4.has_boolean = true;
+                                right_contr.button4.boolean = raw_bool;
+
                             }   break;
                         
                             default:
@@ -460,7 +508,7 @@ namespace vive_input {
             }
             else if (j[contr_it.key()]["_role"] == "left") {
                 // --- Left controller - camera adjustments ---
-                
+                left_contr_active = true;
                 for (json::iterator button_it(contr_it->begin()); button_it != contr_it->end(); ++button_it) {
                     if (button_it->is_object()) {
                         std::string button(button_it.key());
@@ -470,7 +518,7 @@ namespace vive_input {
                         {
                             case ContrCommands::POSE:
                             {
-                                auto pos = j[controller][button]["position"];
+                                auto pos(j[controller][button]["position"]);
                                 cam_raw_pos = glm::vec3(pos["x"], pos["y"], pos["z"]);
 
                                 if (!input.cam_offset_init) {
@@ -479,11 +527,30 @@ namespace vive_input {
                                 }
 
                                 cur_cam_offset = cam_raw_pos - input.cam_init_raw_pos;
+
+                                left_contr.pose.position.x = cam_raw_pos.x;
+                                left_contr.pose.position.y = cam_raw_pos.y;
+                                left_contr.pose.position.z = cam_raw_pos.z;
+
+                                auto quat(j[controller][button]["orientation"]);
+                                glm::quat raw_orient = glm::normalize(glm::quat(quat["w"], quat["x"], quat["y"], quat["z"]));
+
+                                left_contr.pose.orientation.x = raw_orient.x;
+                                left_contr.pose.orientation.y = raw_orient.y;
+                                left_contr.pose.orientation.z = raw_orient.z;
+                                left_contr.pose.orientation.w = raw_orient.w;
+
                             }   break;
 
                             case ContrCommands::RESET:
                             {
-                                input.reset_cam = (j[controller][button]["boolean"]);
+                                bool raw_input(j[controller][button]["boolean"]);
+                                input.reset_cam = raw_input;
+
+                                left_contr.button1.name = "reset";
+                                left_contr.button1.has_boolean = true;
+                                left_contr.button1.boolean = raw_input;
+
                             }   break;
                         }
                     }
@@ -557,6 +624,21 @@ namespace vive_input {
             std::string output(out_msg.dump(3));
             send(out_socket.socket, output.c_str(), output.size(), 0);
         }
+
+        // Publish raw input as string and as ControllersInput message
+        std_msgs::String raw_controller_input;
+        raw_controller_input.data = j.dump(3);
+        controller_raw_string_pub.publish(raw_controller_input);
+
+        right_contr.active = true; // Already validated above
+        if (left_contr_active) {
+            left_contr.active = true;
+        }
+
+        contr_input.header.stamp = ros::Time::now();
+        contr_input.controllers.push_back(right_contr);
+        contr_input.controllers.push_back(left_contr);
+        controller_raw_pub.publish(contr_input);
     }
 
     void App::publishRobotData()
@@ -572,6 +654,7 @@ namespace vive_input {
         pose.orientation.y = input.out_orient.y;
         pose.orientation.z = input.out_orient.z;
         pose.orientation.w = input.out_orient.w;
+
 
         // Camera pose goal
         geometry_msgs::Pose pose_cam;
@@ -609,77 +692,6 @@ namespace vive_input {
         grasper_pub.publish(grabbing);
         clutching_pub.publish(clutching);        
     }
-
-
-    // void App::handleKeyboardInput(int command)
-    // {
-    //     switch (command)
-    //     {
-    //         case 'q':
-    //         {
-    //             printText("Shutting down...");
-    //             ros::requestShutdown();
-    //             shutting_down = true;
-    //         }   break;
-    //
-    //         case 27: // An arrow key was pressed
-    //         {
-    //             if (std::getchar() != 91) { // Arrows are a three-char sequence: 27 91 6[5-8]
-    //                 printText("Unexpected input");
-    //                 break;
-    //             }
-    //
-    //             switch (std::getchar())
-    //             {
-    //                 case 65: // Up arrow
-    //                 {
-    //                     std::cout << "Up" << std::endl;                        
-    //                 }   break;
-    //
-    //                 case 66: // Down arrow
-    //                 {
-    //                     std::cout << "Down" << std::endl;                        
-    //                 }   break;
-    //
-    //                 case 67: // Right arrow
-    //                 {
-    //                     std::cout << "Right" << std::endl;                        
-    //                 }   break;
-    //
-    //                 case 68: // Left arrow
-    //                 {
-    //                     std::cout << "Left" << std::endl;
-    //                 }   break;
-    //             }
-    //         }   break;
-    //          
-    //         default:
-    //         {
-    //             std::cout << command << std::endl;
-    //         }   break;
-    //     }
-    // }
-
-    // void App::getKeyboardInput()
-    // {
-    //     termios term_io;
-    //     int command;
-    //
-    //     tcgetattr(STDIN_FILENO, &term_io); // Original terminal settings
-    //     term_io.c_lflag &= ~ICANON & ~ECHO; // Disable canonical mode (buffered I/O) and local echo
-    //     tcsetattr(STDIN_FILENO, TCSANOW, &term_io); // Set new settings
-    //
-    //     while (ros::ok())
-    //     {
-    //         command = std::getchar();
-    //         handleKeyboardInput(command);
-    //         if (shutting_down) break;
-    //     }
-    //
-    //     // Restore old settings
-    //     term_io.c_lflag |= ICANON | ECHO;
-    //     tcsetattr(STDIN_FILENO, TCSANOW, &term_io);
-    // }
 
 
     int App::run()

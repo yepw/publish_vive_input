@@ -43,7 +43,7 @@ namespace vive_input
         bool initialized;
         bool cam_offset_init, camera_control;
 
-        const float kStartingOuterCone = M_PI_2;
+        const float kStartingOuterCone = M_PI_4;
         const float kStartingDistance = 0.75;
 
         Input() : initialized(false), cam_offset_init(false), camera_control(false), 
@@ -104,6 +104,7 @@ namespace vive_input
         ros::Publisher distance_pub;
         ros::Publisher toggle_pub;
         ros::Publisher controller_raw_pub;
+        ros::Publisher controller_raw_string_pub;
         ros::Publisher keyboard_raw_pub;
 
         ros::Subscriber rot_mat_sub;
@@ -115,7 +116,7 @@ namespace vive_input
 
         void camRotationMatrixCallback(std_msgs::Float32MultiArrayConstPtr msg);
         void controlFrameMatrixCallback(std_msgs::Float32MultiArrayConstPtr msg);
-        void keyboardInputCallback(geometry_msgs::TwistConstPtr msg);
+        void keyboardInputCallback(geometry_msgs::TwistStampedConstPtr msg);
         void evaluateVisibility(const sensor_msgs::ImageConstPtr image);
         void collisionsCallback(const std_msgs::String msg);
 
