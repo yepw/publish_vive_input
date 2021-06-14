@@ -8,7 +8,7 @@ namespace vive_input
 
     struct Switch
     {
-        enum class Type 
+        enum class Type
         {
             HOLD, // Turn on while holding button
             SINGLE, // Toggle with each press
@@ -43,7 +43,7 @@ namespace vive_input
 
         // TODO: Consider breaking this out into button object
         bool button_pressed() { return m_cur_signal && !m_prev_signal; }
-        bool button_depressed() { return !m_cur_signal && m_prev_signal; }
+        bool button_released() { return !m_cur_signal && m_prev_signal; }
         void set_signal(bool signal) 
         { 
             m_prev_signal = m_cur_signal;
@@ -55,7 +55,7 @@ namespace vive_input
                 case Type::HOLD:
                 {
                     m_state = m_cur_signal;
-                    if (button_pressed() || button_depressed()) {
+                    if (button_pressed() || button_released()) {
                         flip();
                     }
                 } break;
