@@ -121,7 +121,7 @@ namespace vive_input {
         // Add sub/pub for raw character input
 
         // rot_mat_sub = n.subscribe("/relaxed_ik/cam_rot_matrix", 10, &App::camRotationMatrixCallback, this);
-        rot_mat_sub = n.subscribe("/viewpoint_interface/frame_matrix", 10, &App::controlFrameMatrixCallback, this);
+        rot_mat_sub = n.subscribe("/viewpoint_manager/camera_frame_matrix", 10, &App::controlFrameMatrixCallback, this);
         keyboard_input_sub = n.subscribe("/keyboard_robot_control/input", 10, &App::keyboardInputCallback, this);
         cam_sub = n.subscribe("/cam/dyn_image", 10, &App::evaluateVisibility, this);
         collision_sub = n.subscribe("/robot_state/collisions", 10, &App::collisionsCallback, this);
@@ -183,10 +183,14 @@ namespace vive_input {
 
     void App::controlFrameMatrixCallback(std_msgs::Float32MultiArrayConstPtr msg)
     {
+        input.cam_rot_mat = glm::mat3(msg->data[0], msg->data[1], msg->data[2],
+                                msg->data[3], msg->data[4], msg->data[5],
+                                msg->data[6], msg->data[7], msg->data[8]);
+        
         // Note: the incoming message is a 3x4 matrix, so we exclude the position column
-        input.cam_rot_mat = glm::transpose(glm::mat3(msg->data[2], msg->data[0], msg->data[1],
-                                      msg->data[6], msg->data[4], msg->data[5],
-                                      msg->data[10], msg->data[8], msg->data[9]));
+        // input.cam_rot_mat = glm::transpose(glm::mat3(msg->data[2], msg->data[0], msg->data[1],
+        //                               msg->data[6], msg->data[4], msg->data[5],
+        //                               msg->data[10], msg->data[8], msg->data[9]));
 
         // std::cout << glm::to_string(input.cam_rot_mat) << std::endl;
     }
@@ -340,17 +344,18 @@ namespace vive_input {
 
     glm::vec3 positionToUR5Frame(glm::vec3 v)
     {
-        // return glm::vec3(v.x, v.y, v.z);
-        return glm::vec3(-v.z, v.x, -v.y);
+        return glm::vec3(v.x, v.y, v.z);
+        //return glm::vec3(-v.z, v.x, -v.y);
     }
 
     glm::quat orientationToUR5Frame(glm::quat q)
     {
         // glm::vec3 new_euler(glm::yaw(q), glm::pitch(q), -glm::roll(q));
-        glm::vec3 new_euler(glm::pitch(q), glm::yaw(q), glm::roll(q));
-        glm::quat new_quat(new_euler);
+        //glm::vec3 new_euler(glm::pitch(q), glm::yaw(q), glm::roll(q));
+        //glm::quat new_quat(new_euler);
 
-        return new_quat;
+        //return new_quat;
+        return q;
     }
 
     void App::resetPose(glm::vec3 new_pos, glm::quat new_orient)
@@ -425,6 +430,7 @@ namespace vive_input {
                             {
                                 bool raw_input(j[controller][button]["boolean"]);
                                 input.grabbing = !raw_input;
+                                // input.grabbing = raw_input;
 
                                 right_contr.button1.name = "grab";
                                 right_contr.button1.has_boolean = true;
