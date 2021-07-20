@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="port"        value="8082" />
+
+    <node pkg="publish_vive_input" type="vibrate_vive.py" name="vibrate_vive" output="screen">
+        <param name="port"  value="$(arg port)" />        
+    </node>
+</launch>
