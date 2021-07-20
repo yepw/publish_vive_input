@@ -12,6 +12,7 @@ class VibrateManager:
             self.socket.connect(('', self.port))
         except:
             print("Could not connect to socket.")
+            self.socket.close()
             exit()
 
         # self.command_sub = rospy.Subscriber("/vibrate_vive/command", String, self.publishCommand)
@@ -34,4 +35,5 @@ if __name__ == '__main__':
     mgr = VibrateManager()
 
     rospy.spin()
+    mgr.socket.close()
 
