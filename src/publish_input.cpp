@@ -124,14 +124,13 @@ namespace vive_input {
         rot_mat_sub = n.subscribe("/viewpoint_manager/camera_frame_matrix", 10, &App::controlFrameMatrixCallback, this);
         keyboard_input_sub = n.subscribe("/keyboard_robot_control/input", 10, &App::keyboardInputCallback, this);
         cam_sub = n.subscribe("/cam/dyn_image", 10, &App::evaluateVisibility, this);
-        collision_sub = n.subscribe("/robot_state/collisions", 10, &App::collisionsCallback, this);
 
         // Init sockets
 
         // Make sure that this matches the Vive params file and that it's not
         // the same as the out port
         in_socket.port = 8081;
-        controller_socket.port = 8082;
+        out_socket.port = 8080;
 
         if (!initializeSocket(in_socket)) {
             return false;
@@ -140,10 +139,6 @@ namespace vive_input {
         if (!initializeSocket(out_socket, false)) {
             return false;
         }
-
-        // if (!initializeSocket(controller_socket, false)) {
-        //     printText("Unable to initialize vibration socket.");
-        // }
 
         return true;
     }
@@ -160,18 +155,6 @@ namespace vive_input {
         std::string data = sock.buffer;
 
         return data;
-    }
-
-    void App::collisionsCallback(const std_msgs::String msg)
-    {
-        if (!controller_socket.socket) {
-            return;
-        }
-
-        // TODO: Send message to interface
-
-        // Send vibration message to controller
-        send(controller_socket.socket, "v", 2, 0);
     }
 
     // void App::camRotationMatrixCallback(std_msgs::Float32MultiArrayConstPtr msg)
@@ -727,10 +710,6 @@ namespace vive_input {
         shutdown(in_socket.socket, SHUT_RDWR);
         shutdown(out_socket.socket, SHUT_RDWR);
         
-        // if (controller_socket.socket) {
-        //     shutdown(controller_socket.socket, SHUT_RDWR);
-        // }
-
         return 0;
     }
 

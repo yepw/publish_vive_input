@@ -92,7 +92,6 @@ namespace vive_input
         Input input;
         Socket in_socket; // Raw Vive input data
         Socket out_socket; // Commands for interface
-        Socket controller_socket; // Controller commands such as vibration
         bool shutting_down;
 
         // ROS
@@ -110,7 +109,6 @@ namespace vive_input
         ros::Subscriber rot_mat_sub;
         ros::Subscriber keyboard_input_sub;
         ros::Subscriber cam_sub;
-        ros::Subscriber collision_sub;
 
         ros::AsyncSpinner spinner;
 
@@ -118,7 +116,6 @@ namespace vive_input
         void controlFrameMatrixCallback(std_msgs::Float32MultiArrayConstPtr msg);
         void keyboardInputCallback(geometry_msgs::TwistStampedConstPtr msg);
         void evaluateVisibility(const sensor_msgs::ImageConstPtr image);
-        void collisionsCallback(const std_msgs::String msg);
 
         bool init();
         void resetPose(glm::vec3 pos, glm::quat quat);
