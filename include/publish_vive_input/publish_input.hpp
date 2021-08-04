@@ -42,11 +42,12 @@ namespace vive_input
         float cur_outer_cone, cur_distance;
         bool initialized;
         bool cam_offset_init, camera_control;
+        bool manual_reset;
 
         const float kStartingOuterCone = M_PI_4;
         const float kStartingDistance = 0.75;
 
-        Input() : initialized(false), cam_offset_init(false), camera_control(false), 
+        Input() : initialized(false), cam_offset_init(false), camera_control(false), manual_reset(false),
                 out_orient(1.0, 0.0, 0.0, 0.0), cur_ee_pos(0.0), cur_ee_orient(1.0, 0.0, 0.0, 0.0), 
                 init_raw_orient(1.0, 0.0, 0.0, 0.0), out_pos(0.0), manual_adjust(0.0), cam_rot_mat(1.0), 
                 camera_offset(0.0), cur_outer_cone(kStartingOuterCone), cur_distance(kStartingDistance),
@@ -110,6 +111,7 @@ namespace vive_input
         ros::Subscriber rot_mat_sub;
         ros::Subscriber keyboard_input_sub;
         ros::Subscriber cam_sub;
+        ros::Subscriber manual_reset;
 
         ros::AsyncSpinner spinner;
 
@@ -117,6 +119,7 @@ namespace vive_input
         void controlFrameMatrixCallback(std_msgs::Float32MultiArrayConstPtr msg);
         void keyboardInputCallback(geometry_msgs::TwistStampedConstPtr msg);
         void evaluateVisibility(const sensor_msgs::ImageConstPtr image);
+        void triggerManualReset(std_msgs::Bool msg);
 
         bool init();
         void resetPose(glm::vec3 pos, glm::quat quat);

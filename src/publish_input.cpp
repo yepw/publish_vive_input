@@ -125,6 +125,7 @@ namespace vive_input {
         rot_mat_sub = n.subscribe("/viewpoint_manager/camera_frame_matrix", 10, &App::controlFrameMatrixCallback, this);
         keyboard_input_sub = n.subscribe("/keyboard_robot_control/input", 10, &App::keyboardInputCallback, this);
         cam_sub = n.subscribe("/cam/dyn_image", 10, &App::evaluateVisibility, this);
+        manual_reset = n.subscribe("/vive_input/manual_reset", 10, &App::triggerManualReset, this);
 
         // Init sockets
 
@@ -342,6 +343,11 @@ namespace vive_input {
         return q;
     }
 
+    void App::triggerManualReset(std_msgs::Bool msg)
+    {
+        input.manual_reset = msg.data;
+    }
+
     void App::resetPose(glm::vec3 new_pos, glm::quat new_orient)
     {
         input.prev_raw_pos = new_pos;
@@ -425,7 +431,13 @@ namespace vive_input {
                             case ContrCommands::RESET:
                             {
                                 bool raw_input(j[controller][button]["boolean"]);
-                                input.reset = raw_input;
+                                if (input.manual_reset) {
+                                    input.reset = true;
+                                    input.manual_reset = false; // Reset manual_reset variable
+                                }
+                                else {
+                                    input.reset = raw_input;
+                                }
                                 input.reset_cam = input.reset.is_on();
 
                                 right_contr.button2.name = "reset";
@@ -535,7 +547,10 @@ namespace vive_input {
                             case ContrCommands::RESET:
                             {
                                 bool raw_input(j[controller][button]["boolean"]);
-                                input.reset_cam = raw_input;
+                                // Ignore L controller if already getting reset signal from R controller
+                                if (!input.reset.is_on()) {
+                                    input.reset_cam = raw_input;
+                                }
 
                                 left_contr.button1.name = "reset";
                                 left_contr.button1.has_boolean = true;
@@ -562,7 +577,7 @@ namespace vive_input {
             input.reset_cam = true;
         }
 
-        if (input.reset.confirm_flip_off()) {
+        if (input.reset.is_on()) {
             resetPose(cur_raw_pos, cur_raw_orient);
         }
 
