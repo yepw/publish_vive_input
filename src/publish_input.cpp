@@ -108,6 +108,7 @@ namespace vive_input {
         // Init ROS
         ros::NodeHandle n;
         ee_pub = n.advertise<relaxed_ik::EEPoseGoals>("/relaxed_ik/ee_pose_goals", 10);
+        reset_pub = n.advertise<std_msgs::Bool>("/relaxed_ik/reset", 10);
         grasper_pub = n.advertise<std_msgs::Bool>("/robot_state/grasping", 10);
         clutching_pub = n.advertise<std_msgs::Bool>("/robot_state/clutching", 10);
         outer_cone_pub = n.advertise<std_msgs::Float32>("/relaxed_ik/outer_cone", 10);
@@ -671,7 +672,11 @@ namespace vive_input {
         goal.ee_poses.push_back(pose_cam);
         goal.ee_poses.push_back(pose_head);
 
+        std_msgs::Bool reset;
+        reset.data = input.reset.is_on();
+
         ee_pub.publish(goal);
+        reset_pub.publish(reset);
 
 
         std_msgs::Bool grabbing, clutching;
