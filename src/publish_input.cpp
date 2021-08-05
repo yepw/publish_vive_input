@@ -577,7 +577,7 @@ namespace vive_input {
             input.reset_cam = true;
         }
 
-        if (input.reset.is_on()) {
+        if (input.reset.confirm_flip_off()) {
             resetPose(cur_raw_pos, cur_raw_orient);
         }
 
