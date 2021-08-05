@@ -148,10 +148,10 @@ namespace vive_input {
     std::string getSocketData(Socket &sock)
     {
         int len_data;
-        len_data = recvfrom(sock.socket, sock.buffer, sock.DATA_SIZE, MSG_WAITALL, (sockaddr *) &(sock.address), &(sock.len)); 
+        len_data = recv(sock.socket, sock.buffer, sock.DATA_SIZE, 0); 
         while (len_data == -1 && ros::ok())
         {
-            len_data = recvfrom(sock.socket, sock.buffer, sock.DATA_SIZE, MSG_WAITALL, (sockaddr *) &(sock.address), &(sock.len));   
+            len_data = recv(sock.socket, sock.buffer, sock.DATA_SIZE, 0);   
         }
         sock.buffer[len_data] = '\0';
         std::string data = sock.buffer;
@@ -718,7 +718,7 @@ namespace vive_input {
 
         while (ros::ok())
         {
-            if (poll(&poll_fds, 1, LOOP_RATE) > 0) {
+            if (poll(&poll_fds, 1, int(1.0 / LOOP_RATE)) > 0) {
                 std::string input_data(getSocketData(in_socket));
                 handleControllerInput(input_data);
             }
