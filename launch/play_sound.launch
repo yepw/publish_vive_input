@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<launch>
+    <node pkg="publish_vive_input" type="play_sound.py" name="play_sound" output="screen">
+        <param name="assets_folder"  value="$(find publish_vive_input)/assets/" />        
+    </node>
+</launch>
