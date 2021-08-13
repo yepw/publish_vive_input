@@ -189,7 +189,8 @@ namespace vive_input {
 
     glm::vec3 positionToUR5Frame(glm::vec3 v)
     {
-        return glm::vec3(v.x, v.y, v.z);
+        return glm::vec3(-v.z, -v.x, v.y);
+        // return glm::vec3(v.x, v.y, v.z);
         //return glm::vec3(-v.z, v.x, -v.y);
     }
 
@@ -197,10 +198,10 @@ namespace vive_input {
     {
         // glm::vec3 new_euler(glm::yaw(q), glm::pitch(q), -glm::roll(q));
         //glm::vec3 new_euler(glm::pitch(q), glm::yaw(q), glm::roll(q));
-        //glm::quat new_quat(new_euler);
+        glm::quat new_quat(q.w, -q.z, -q.x, q.y);
 
-        //return new_quat;
-        return q;
+        return new_quat;
+        // return q;
     }
 
     void App::triggerManualReset(std_msgs::Bool msg)
@@ -460,6 +461,7 @@ namespace vive_input {
             glm::vec3 input_vel(cur_raw_pos - input.prev_raw_pos);
             input.cur_ee_pos = updatePosition(input.prev_ee_pos, input_vel, cam_rot_mat);
             input.out_pos = positionToUR5Frame(input.cur_ee_pos);
+            std::cout << input.out_pos.x << std::endl;
             // input.out_pos = input.cur_ee_pos;
 
             // Calculate new orientation
