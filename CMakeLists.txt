@@ -9,18 +9,18 @@ project(publish_vive_input)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
     roscpp
-    relaxed_ik
+    ros_server
     tf2_ros
     std_msgs
     sensor_msgs
     geometry_msgs
-    cv_bridge
+    # cv_bridge
     message_generation
 )
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
-find_package(OpenCV REQUIRED)
+# find_package(OpenCV REQUIRED)
 
 ################################################
 ## Declare ROS messages, services and actions ##
@@ -72,7 +72,7 @@ generate_messages(
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES publish_vive_input
-  CATKIN_DEPENDS roscpp relaxed_ik geometry_msgs std_msgs sensor_msgs tf2_ros message_generation
+  CATKIN_DEPENDS roscpp ros_server geometry_msgs std_msgs sensor_msgs tf2_ros message_generation
 #  DEPENDS system_lib
 )
 

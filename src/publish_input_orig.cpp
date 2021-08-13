@@ -6,6 +6,14 @@
 #include <unistd.h>
 #include <termios.h>
 
+// OpenCV
+#include <opencv2/opencv.hpp>
+#include <opencv2/aruco.hpp>
+#include <cv_bridge/cv_bridge.h>
+
+// TEST
+#include <opencv2/highgui.hpp>
+
 // ROS
 #include <ros/ros.h>
 #include <std_msgs/Bool.h>
@@ -17,7 +25,7 @@
 #include <std_msgs/Float32.h>
 #include <std_msgs/Float32MultiArray.h>
 #include <std_msgs/String.h>
-#include <ros_server/EEPoseGoals.h>
+#include <relaxed_ik/EEPoseGoals.h>
 #include <publish_vive_input/ButtonInfo.h>
 #include <publish_vive_input/ControllerInfo.h>
 #include <publish_vive_input/ControllersInput.h>
@@ -32,7 +40,7 @@
 #include "publish_vive_input/publish_input.hpp"
 
 using json = nlohmann::json;
-using EEPoseGoals = ros_server::EEPoseGoals;
+using EEPoseGoals = relaxed_ik::EEPoseGoals;
 using ButtonInfo = publish_vive_input::ButtonInfo;
 using ControllerInfo = publish_vive_input::ControllerInfo;
 using ControllersInput = publish_vive_input::ControllersInput;
@@ -99,17 +107,24 @@ namespace vive_input {
     {
         // Init ROS
         ros::NodeHandle n;
-        ee_pub = n.advertise<ros_server::EEPoseGoals>("/relaxed_ik/ee_pose_goals", 10);
+        ee_pub = n.advertise<relaxed_ik::EEPoseGoals>("/relaxed_ik/ee_pose_goals", 10);
         reset_pub = n.advertise<std_msgs::Bool>("/relaxed_ik/reset", 10);
         grasper_pub = n.advertise<std_msgs::Bool>("/robot_state/grasping", 10);
         clutching_pub = n.advertise<std_msgs::Bool>("/robot_state/clutching", 10);
-
+        outer_cone_pub = n.advertise<std_msgs::Float32>("/relaxed_ik/outer_cone", 10);
+        inner_cone_pub = n.advertise<std_msgs::Float32>("/relaxed_ik/inner_cone", 10);
+        distance_pub = n.advertise<std_msgs::Float32>("/relaxed_ik/ee_distance", 10);
         toggle_pub = n.advertise<std_msgs::Bool>("/relaxed_ik/toggle", 10);
         controller_raw_pub = n.advertise<ControllersInput>("/vive_input/raw_data", 10);
         controller_raw_string_pub = n.advertise<std_msgs::String>("/vive_input/raw_string", 10);
+        keyboard_raw_pub = n.advertise<geometry_msgs::TwistStamped>("/keyboard_input/raw", 10);
         // TODO: Add raw input publishing
         // Add sub/pub for raw character input
 
+        // rot_mat_sub = n.subscribe("/relaxed_ik/cam_rot_matrix", 10, &App::camRotationMatrixCallback, this);
+        rot_mat_sub = n.subscribe("/viewpoint_manager/camera_frame_matrix", 10, &App::controlFrameMatrixCallback, this);
+        keyboard_input_sub = n.subscribe("/keyboard_robot_control/input", 10, &App::keyboardInputCallback, this);
+        cam_sub = n.subscribe("/cam/dyn_image", 10, &App::evaluateVisibility, this);
         manual_reset = n.subscribe("/vive_input/manual_reset", 10, &App::triggerManualReset, this);
 
         // Init sockets
@@ -142,6 +157,131 @@ namespace vive_input {
         std::string data = sock.buffer;
 
         return data;
+    }
+
+    // void App::camRotationMatrixCallback(std_msgs::Float32MultiArrayConstPtr msg)
+    // {
+    //     input.cam_rot_mat = glm::mat3(msg->data[0], msg->data[1], msg->data[2],
+    //                             msg->data[3], msg->data[4], msg->data[5],
+    //                             msg->data[6], msg->data[7], msg->data[8]);
+    // }
+
+    void App::controlFrameMatrixCallback(std_msgs::Float32MultiArrayConstPtr msg)
+    {
+        input.cam_rot_mat = glm::mat3(msg->data[0], msg->data[1], msg->data[2],
+                                msg->data[3], msg->data[4], msg->data[5],
+                                msg->data[6], msg->data[7], msg->data[8]);
+        
+        // Note: the incoming message is a 3x4 matrix, so we exclude the position column
+        // input.cam_rot_mat = glm::transpose(glm::mat3(msg->data[2], msg->data[0], msg->data[1],
+        //                               msg->data[6], msg->data[4], msg->data[5],
+        //                               msg->data[10], msg->data[8], msg->data[9]));
+
+        // std::cout << glm::to_string(input.cam_rot_mat) << std::endl;
+    }
+
+    void App::keyboardInputCallback(geometry_msgs::TwistStampedConstPtr msg)
+    {
+        // Calculate new position
+        glm::vec3 input_change(msg->twist.linear.x, msg->twist.linear.y, msg->twist.linear.z);
+        glm::mat3 cam_rot_mat(input.cam_rot_mat);
+
+        input.cur_ee_pos = updatePosition(input.prev_ee_pos, input_change, cam_rot_mat);   
+
+        input.prev_ee_pos = input.cur_ee_pos;
+        input.out_pos = input.cur_ee_pos;
+
+        // // Calculate new orientation
+        // glm::quat q_v1(glm::normalize(rotateQuaternionByMatrix(input.prev_raw_orient, glm::mat3_cast(cur_raw_orient))));
+        // glm::quat q_v(rotateQuaternionByMatrix(quaternionDisplacement(q_v1, cur_raw_orient), cam_rot_mat));
+        // // q_v is nan when there is no change
+        // if (!std::isnan(q_v.w)) { 
+        //     input.cur_ee_orient = quaternionMultiplication(q_v, input.prev_ee_orient);
+        // }
+
+        // input.prev_ee_orient = input.cur_ee_orient;
+
+
+        printText(input.to_str());
+        publishRobotData();
+
+        keyboard_raw_pub.publish(msg);
+    }
+
+    void App::evaluateVisibility(const sensor_msgs::ImageConstPtr image)
+    {
+        const float max_cone_rad = M_PI_2;
+        const float min_cone_rad = M_PI / 5.0;
+        const float max_distance = 1.00;
+        const float min_distance = 0.45;
+
+        const float cone_step = 0.01;
+        const float dist_step = 0.005;
+
+        cv_bridge::CvImageConstPtr raw_img;
+        cv::Mat img;
+        try
+        {
+            raw_img = cv_bridge::toCvShare(image, sensor_msgs::image_encodings::BGR8);
+            cv::flip(raw_img->image, img, 0);
+        }
+        catch (cv_bridge::Exception& e)
+        {
+            printText("cv_bridge exception: %s", 0);
+            printText(e.what());
+            return;
+        }
+
+        std::vector<int> marker_ids;
+        std::vector<std::vector<cv::Point2f> > marker_corners, rejected_candidates;            
+        cv::Ptr<cv::aruco::DetectorParameters> detect_params = cv::aruco::DetectorParameters::create();
+        cv::Ptr<cv::aruco::Dictionary> ar_dict = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250); 
+
+        cv::aruco::detectMarkers(img, ar_dict, marker_corners, marker_ids, detect_params);
+
+        float step = 0.01; // Step in radians
+        if (marker_corners.size() > 0) { // Markers are visible
+            // cv::aruco::drawDetectedMarkers(img, marker_corners, marker_ids);
+
+            if (input.cur_outer_cone < max_cone_rad) {
+                input.cur_outer_cone += cone_step;
+            }
+
+            if (input.cur_distance < max_distance) {
+                input.cur_distance += dist_step;
+            }
+        }
+        else { // Markers are not visible
+            if (input.cur_outer_cone > min_cone_rad) {
+                input.cur_outer_cone -= cone_step;
+
+                if (input.cur_outer_cone < min_cone_rad) {
+                    input.cur_outer_cone = min_cone_rad;
+                }
+            }
+
+            if (input.cur_outer_cone == min_cone_rad) {
+                input.cur_distance -= dist_step;
+
+                if (input.cur_distance < min_distance) {
+                    input.cur_distance = min_distance;
+                }
+            }
+        }
+
+        std_msgs::Float32 outer_cone;
+        outer_cone.data = input.cur_outer_cone;
+        std_msgs::Float32 inner_cone;
+        inner_cone.data = min_cone_rad;
+        std_msgs::Float32 distance;
+        distance.data = input.cur_distance;
+
+        outer_cone_pub.publish(outer_cone);
+        inner_cone_pub.publish(inner_cone);
+        distance_pub.publish(distance);
+
+        // cv::imshow("Test", img);
+        // cv::waitKey(25);
     }
 
     inline glm::quat quaternionDisplacement(const glm::quat &q1, const glm::quat &q2)
@@ -256,6 +396,7 @@ namespace vive_input {
                             {
                                 auto pos(j[controller][button]["position"]);
                                 cur_raw_pos = glm::vec3(pos["x"], pos["y"], pos["z"]);
+
                                 auto quat(j[controller][button]["orientation"]);
                                 cur_raw_orient = glm::normalize(glm::quat(quat["w"], quat["x"], quat["y"], quat["z"]));
 
@@ -480,7 +621,7 @@ namespace vive_input {
         input.prev_ee_orient = input.cur_ee_orient;
 
         // std::cout << "Rot_mat: " << glm::to_string(input.cam_rot_mat) << std::endl;
-        // printText(input.to_str());
+        printText(input.to_str());
 
         publishRobotData();
 
@@ -519,8 +660,32 @@ namespace vive_input {
         pose.orientation.z = input.out_orient.z;
         pose.orientation.w = input.out_orient.w;
 
+
+        // Camera pose goal
+        geometry_msgs::Pose pose_cam;
+        if (input.camera_control) {
+            pose_cam.position.x = input.camera_offset.x;
+            pose_cam.position.y = input.camera_offset.y;
+            pose_cam.position.z = input.camera_offset.z;
+        }
+        else {
+            pose_cam.position.x = 0.0;
+            pose_cam.position.y = 0.0;
+            pose_cam.position.z = 0.0;
+        }
+
+        // Sawyer head pose goal
+        geometry_msgs::Pose pose_head;
+        pose_head.orientation.x = 0.0;
+        pose_head.orientation.y = 0.0;
+        pose_head.orientation.z = 0.0;
+        pose_head.orientation.w = 1.0;
+
+
         goal.header.stamp = ros::Time::now();
         goal.ee_poses.push_back(pose);
+        goal.ee_poses.push_back(pose_cam);
+        goal.ee_poses.push_back(pose_head);
 
         std_msgs::Bool reset;
         reset.data = input.reset.is_on();
@@ -549,6 +714,7 @@ namespace vive_input {
         poll_fds.events = POLLIN; // Wait until there's data to read
 
         spinner.start();
+        // std::thread get_keyboard_input(&App::getKeyboardInput, this);
 
         while (ros::ok())
         {
@@ -558,6 +724,7 @@ namespace vive_input {
             }
         }
 
+        // get_keyboard_input.join();
         spinner.stop();
 
         shutdown(in_socket.socket, SHUT_RDWR);
