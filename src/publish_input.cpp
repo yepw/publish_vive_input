@@ -278,9 +278,9 @@ namespace vive_input {
 
                             case ContrCommands::GRAB:
                             {
-                                bool raw_input(j[controller][button]["boolean"]);
-                                input.grabbing = !raw_input;
-                                // input.grabbing = raw_input;
+                                bool raw_input(j[controller][button]["boolean"] and j[controller][button]["pressure"] == 1.0 );
+                                // input.grabbing = !raw_input;
+                                input.grabbing = raw_input;
 
                                 right_contr.button1.name = "grab";
                                 right_contr.button1.has_boolean = true;
