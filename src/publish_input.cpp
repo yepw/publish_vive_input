@@ -99,7 +99,7 @@ namespace vive_input {
     {
         // Init ROS
         ros::NodeHandle n;
-        ee_pub = n.advertise<ros_server::EEPoseGoals>("/relaxed_ik/ee_pose_goals", 10);
+        ee_pub = n.advertise<ros_server::EEPoseGoals>("ee_pose_goals", 10);
         reset_pub = n.advertise<std_msgs::Bool>("/relaxed_ik/reset", 10);
         grasper_pub = n.advertise<std_msgs::Bool>("/robot_state/grasping", 10);
         clutching_pub = n.advertise<std_msgs::Bool>("/robot_state/clutching", 10);
@@ -461,7 +461,6 @@ namespace vive_input {
             glm::vec3 input_vel(cur_raw_pos - input.prev_raw_pos);
             input.cur_ee_pos = updatePosition(input.prev_ee_pos, input_vel, cam_rot_mat);
             input.out_pos = positionToUR5Frame(input.cur_ee_pos);
-            std::cout << input.out_pos.x << std::endl;
             // input.out_pos = input.cur_ee_pos;
 
             // Calculate new orientation
