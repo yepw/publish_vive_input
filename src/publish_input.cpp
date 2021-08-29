@@ -461,7 +461,6 @@ namespace vive_input {
             glm::vec3 input_vel(cur_raw_pos - input.prev_raw_pos);
             input.cur_ee_pos = updatePosition(input.prev_ee_pos, input_vel, cam_rot_mat);
             input.out_pos = positionToUR5Frame(input.cur_ee_pos);
-            std::cout << input.out_pos.x << std::endl;
             // input.out_pos = input.cur_ee_pos;
 
             // Calculate new orientation
@@ -516,10 +515,15 @@ namespace vive_input {
         pose.position.y = input.out_pos.y;
         pose.position.z = input.out_pos.z;
 
-        pose.orientation.x = input.out_orient.x;
-        pose.orientation.y = input.out_orient.y;
-        pose.orientation.z = input.out_orient.z;
-        pose.orientation.w = input.out_orient.w;
+        // pose.orientation.x = input.out_orient.x;
+        // pose.orientation.y = input.out_orient.y;
+        // pose.orientation.z = input.out_orient.z;
+        // pose.orientation.w = input.out_orient.w;
+
+        pose.orientation.x = 0.;
+        pose.orientation.y = 0.;
+        pose.orientation.z = 0.;
+        pose.orientation.w = 1.;
 
         goal.header.stamp = ros::Time::now();
         goal.ee_poses.push_back(pose);
