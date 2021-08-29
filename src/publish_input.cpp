@@ -99,7 +99,7 @@ namespace vive_input {
     {
         // Init ROS
         ros::NodeHandle n;
-        ee_pub = n.advertise<ros_server::EEPoseGoals>("/relaxed_ik/ee_pose_goals", 10);
+        ee_pub = n.advertise<ros_server::EEPoseGoals>("ee_pose_goals", 10);
         reset_pub = n.advertise<std_msgs::Bool>("/relaxed_ik/reset", 10);
         grasper_pub = n.advertise<std_msgs::Bool>("/robot_state/grasping", 10);
         clutching_pub = n.advertise<std_msgs::Bool>("/robot_state/clutching", 10);

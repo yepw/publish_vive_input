@@ -1,5 +1,10 @@
 <?xml version="1.0"?>
 <launch>
-   <node pkg="publish_vive_input" type="publish_input" name="vive_input"
-         output="screen" cwd="node"/>
+      <arg name="use_ns" default = "false" />
+      <arg name="robot_ns" default="relaxed_ik"/>
+      <node unless="$(arg use_ns)" pkg="publish_vive_input" type="publish_input" name="vive_input" output="screen" cwd="node">
+            <remap from="ee_pose_goals" to="/relaxed_ik/ee_pose_goals" />
+      </node>
+      <node if="$(arg use_ns)" pkg="publish_vive_input" type="publish_input" name="vive_input" 
+            ns="$(arg robot_ns)" output="screen" cwd="node"/>
 </launch>
