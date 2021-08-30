@@ -36,7 +36,8 @@ namespace vive_input
         glm::quat prev_raw_orient, prev_ee_orient, cur_ee_orient, out_orient;
         glm::quat init_raw_orient;
         glm::vec3 manual_adjust;
-        glm::mat3 cam_rot_mat;
+        // glm::mat3 cam_rot_mat;
+        glm::mat3 control_mappings;
         glm::vec3 cam_init_raw_pos, camera_offset;
         Switch grabbing, reset, clutching, toggle, reset_cam;
         float cur_outer_cone, cur_distance;
@@ -49,7 +50,7 @@ namespace vive_input
 
         Input() : initialized(false), cam_offset_init(false), camera_control(false), manual_reset(false),
                 out_orient(1.0, 0.0, 0.0, 0.0), cur_ee_pos(0.0), cur_ee_orient(1.0, 0.0, 0.0, 0.0), 
-                init_raw_orient(1.0, 0.0, 0.0, 0.0), out_pos(0.0), manual_adjust(0.0), cam_rot_mat(1.0), 
+                init_raw_orient(1.0, 0.0, 0.0, 0.0), out_pos(0.0), manual_adjust(0.0), control_mappings(1.0), 
                 camera_offset(0.0), cur_outer_cone(kStartingOuterCone), cur_distance(kStartingDistance),
                 grabbing(Switch(true, Switch::Type::HOLD)), reset(Switch(false, Switch::Type::HOLD)),
                 clutching(Switch(true, Switch::Type::SINGLE)), toggle(Switch(false, Switch::Type::HOLD)),

@@ -2,9 +2,15 @@
 <launch>
       <arg name="use_ns" default = "false" />
       <arg name="robot_ns" default="relaxed_ik"/>
+      <arg name="control_mapping" default = "robot"/>
+
       <node unless="$(arg use_ns)" pkg="publish_vive_input" type="publish_input" name="vive_input" output="screen" cwd="node">
-            <remap from="ee_pose_goals" to="/relaxed_ik/ee_pose_goals" />
+            <remap from="ee_pose_goals" to="/relaxed_ik/ee_pose_goals" />    
+            <param name="control_mapping" type="string" value="$(arg control_mapping)" />
       </node>
       <node if="$(arg use_ns)" pkg="publish_vive_input" type="publish_input" name="vive_input" 
-            ns="$(arg robot_ns)" output="screen" cwd="node"/>
+            ns="$(arg robot_ns)" output="screen" cwd="node">
+            <param name="control_mapping" type="string" value="$(arg control_mapping)" />
+      </node>
+
 </launch>

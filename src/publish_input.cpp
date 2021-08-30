@@ -25,6 +25,7 @@
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/quaternion.hpp>
 
 #include "nlohmann/json.hpp"
@@ -99,6 +100,55 @@ namespace vive_input {
     {
         // Init ROS
         ros::NodeHandle n;
+        ros::NodeHandle private_n("~");
+
+        std::string control_mapping;
+        private_n.getParam("control_mapping", control_mapping);
+
+        float cam[16];
+
+        printText("setting up control mapping: " + control_mapping);
+
+        if (control_mapping == "camera") {
+            cam[0] = -0.7071068;
+            cam[1] = 0.;
+            cam[2] = -0.7071068;
+            cam[3] = -0.3535534;
+            cam[4] =  0.8660254;
+            cam[5] =  0.3535534;
+            cam[6] =  0.6123725;
+            cam[7] =  0.5000000;
+            cam[8] = -0.6123725;
+        } else {
+            if (control_mapping == "camera_right_world_up") {
+                cam[0] = -0.7071068;
+                cam[1] = 0.;
+                cam[2] = -0.7071068;
+                cam[3] = 0.;
+                cam[4] = 1.;
+                cam[5] = 0.;
+                cam[6] = 0.7071068;
+                cam[7] = 0.;
+                cam[8] = -0.7071068;
+            } else {
+                if (control_mapping == "robot") {
+                    cam[0] = 1.;
+                    cam[1] = 0.;
+                    cam[2] = 0.;
+                    cam[3] = 0.;
+                    cam[4] = 1.;
+                    cam[5] = 0.;
+                    cam[6] = 0.;
+                    cam[7] = 0.;
+                    cam[8] = 1.;
+                } else {
+                    printText("Error: Unknown control mapping: " + control_mapping);
+                }
+            }
+        }
+
+        input.control_mappings = glm::make_mat3(cam);
+
         ee_pub = n.advertise<ros_server::EEPoseGoals>("ee_pose_goals", 10);
         reset_pub = n.advertise<std_msgs::Bool>("/relaxed_ik/reset", 10);
         grasper_pub = n.advertise<std_msgs::Bool>("/robot_state/grasping", 10);
@@ -444,28 +494,28 @@ namespace vive_input {
         // Publish the pose as normal
         if (!input.clutching.is_on() && !input.reset.is_on()) {
             // Get the camera pose matrix
-            // glm::mat3 cam_rot_mat(1.0);
-            glm::mat3 cam_rot_mat(input.cam_rot_mat);
+            
+            glm::mat3 control_mappings(input.control_mappings);
 
             // Calculate camera offset
-            input.camera_offset = cam_rot_mat * cur_cam_offset;
+            // input.camera_offset = cam_rot_mat * cur_cam_offset;
 
-            if (glm::length(input.camera_offset) > 0.1) {
-                input.camera_control = true;
-            }
-            else {
-                input.camera_control = false;
-            }
+            // if (glm::length(input.camera_offset) > 0.1) {
+            //     input.camera_control = true;
+            // }
+            // else {
+            //     input.camera_control = false;
+            // }
 
             // Calculate new position
             glm::vec3 input_vel(cur_raw_pos - input.prev_raw_pos);
-            input.cur_ee_pos = updatePosition(input.prev_ee_pos, input_vel, cam_rot_mat);
+            input.cur_ee_pos = updatePosition(input.prev_ee_pos, input_vel, control_mappings);
             input.out_pos = positionToUR5Frame(input.cur_ee_pos);
             // input.out_pos = input.cur_ee_pos;
 
             // Calculate new orientation
             glm::quat q_v1(glm::normalize(rotateQuaternionByMatrix(input.prev_raw_orient, glm::mat3_cast(cur_raw_orient))));
-            glm::quat q_v(rotateQuaternionByMatrix(quaternionDisplacement(q_v1, cur_raw_orient), cam_rot_mat));
+            glm::quat q_v(rotateQuaternionByMatrix(quaternionDisplacement(q_v1, cur_raw_orient), control_mappings));
             // q_v is nan when there is no change
             if (!std::isnan(q_v.w)) { 
                 input.cur_ee_orient = quaternionMultiplication(q_v, input.prev_ee_orient);

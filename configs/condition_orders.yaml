@@ -1,0 +1,8 @@
+condition_order: ABC
+condition_map :
+  A : camera
+  B : camera_right_world_up
+  C : Robot
+starting_cdt_index : 0
+starting_round : 0
+starting_times : 0
