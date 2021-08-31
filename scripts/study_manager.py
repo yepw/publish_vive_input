@@ -12,8 +12,11 @@ import subprocess
 import random
 import string
 import yaml
+import os
 import json
 from datetime import datetime
+import Tkinter as tk
+import tkFont 
 
 def curr_time():
     now = rospy.get_rostime()
@@ -29,9 +32,15 @@ def gen_user_id ():
     chars=string.ascii_uppercase + string.digits
     return ''.join(random.choice(chars) for _ in range(size))
 
+# size of the pop up message box
+SCALE = 20
+
 class StudyManager():
+
     def __init__(self):
+
         self.user_id = gen_user_id()
+        self.directory = "/home/uwgraphics/inperson_study_logs"
         self.entire_study_start_time = curr_time()
         self.robot_state = "stopped"
         self.task_state = "finished"
@@ -42,6 +51,13 @@ class StudyManager():
                             "trial1",
                             "trial2",
                             "trial3"]
+
+        self.round_names_vis = ["Free Explore",
+                            "Practice 1",
+                            "Practice 2",
+                            "Trial 1",
+                            "Trial 2",
+                            "Trial 3"]
         self.totalRound = 5
 
         path_to_src = rospkg.RosPack().get_path('publish_vive_input')
@@ -60,27 +76,44 @@ class StudyManager():
         for i, c in enumerate(self.condition_order):
             cdt = condition_map[c]
             self.conditions.append(cdt)
-
+        
+        self.study_state_pub = rospy.Publisher('study_state', String, queue_size=5)
 
         rospy.Subscriber("/reset", Bool, self.reset_cb)
         rospy.Subscriber("/start", Bool, self.start_cb)
         rospy.Subscriber("/success", Bool, self.success_cb)
-        rospy.Subscriber("/robot_state/clutching", Bool, self.clutching_cb)
-
         rospy.Subscriber("/failure", Bool, self.failure_cb)
+        rospy.Subscriber("/robot_state/clutching", Bool, self.clutching_cb)
 
         subprocess.Popen(["roslaunch", "mimicry_openvr", 
                         "mimicry_openvr.launch", "print_to_screen:=false"])
 
         self.spawn_robot_control(self.conditions[self.cdt_index])
 
+        self.pub_study_state("Condition 1 \n \n Training")
 
-    def saveTofile(self):
+    def pub_study_state(self, s):
+        msg = String()
+        msg.data = s
+        self.study_state_pub.publish(msg)
+
+    def gen_filename(self):
         filename = self.user_id
         filename += "_condition_" + str(self.cdt_index)
         filename += "_" + self.conditions[self.cdt_index]
         filename += "_round_" + self.round_names[self.round]
-        filename += "_times_" + str(self.times)
+        return filename
+
+
+    def saveTofile(self):
+        # stop rosbag recording
+        s = '/record'
+        node_names = rosnode.get_node_names()
+        for name in node_names:
+            if (s in name):
+                os.system("rosnode kill " + name)
+
+        filename = self.gen_filename() + '.yaml'
 
         data = {}
         data['userId'] = self.user_id
@@ -98,7 +131,7 @@ class StudyManager():
 
         data['task_state'] = self.task_state
 
-        with open( "/home/uwgraphics/inperson_study_logs/" + filename + '.yaml', 'w') as file:
+        with open( self.directory + '/' + filename, 'w') as file:
             yaml.dump(data, file)
 
     def clutching_cb(self, msg):
@@ -113,6 +146,7 @@ class StudyManager():
             self.spawn_robot_control(self.conditions[self.cdt_index])
 
     def start_cb(self, msg):
+
         if self.robot_state == "running":
             self.stop_robot_control()
 
@@ -140,6 +174,16 @@ class StudyManager():
         print("current round: "  + str(self.round))
         print("current times: "  + str(self.times))
 
+        self.pub_study_state("Condition " + str(self.cdt_index + 1) + "\n" + self.round_names_vis[self.round])
+
+        bag_file_name = self.gen_filename() + ".bag"
+        record_topics = '/tf /usb_cam/image_raw/compressed'
+
+        command = "rosbag record -O " + self.directory + '/' + bag_file_name  + ' ' + record_topics
+        print(command)
+        self.bag = subprocess.Popen(command, stdin=subprocess.PIPE, shell=True)
+
+
     def success_cb(self, msg):
         self.task_end_time = curr_time()
         self.task_state = "finished"
@@ -160,7 +204,6 @@ class StudyManager():
         self.robot_state = "running"
       
     def stop_robot_control(self):
-
         node_names = [
             "vive_input",
             "sawyer_control",
