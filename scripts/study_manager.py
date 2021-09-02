@@ -17,6 +17,14 @@ import json
 from datetime import datetime
 import Tkinter as tk
 import tkFont 
+import time
+import intera_interface
+
+def null_time():
+    time = { 'time' : datetime.fromtimestamp(0), 
+            'secs' : 0, 
+            'nsecs' : 0 }
+    return time
 
 def curr_time():
     now = rospy.get_rostime()
@@ -24,7 +32,6 @@ def curr_time():
             'secs' : now.secs, 
             'nsecs' : now.nsecs }
     return time
-
 
 def gen_user_id ():
     # https://stackoverflow.com/questions/2257441/random-string-generation-with-upper-case-letters-and-digits?rq=1
@@ -39,26 +46,54 @@ class StudyManager():
 
     def __init__(self):
 
+        self.timer = rospy.Timer(rospy.Duration(1), self.timer_cb)
+        self.time_limit = 0
+        self.display_msg = ""
+
         self.user_id = gen_user_id()
         self.directory = "/home/uwgraphics/inperson_study_logs"
         self.entire_study_start_time = curr_time()
-        self.robot_state = "stopped"
-        self.task_state = "finished"
 
-        self.round_names = ["freeExplore",
+        ## robot_state: running or stopped
+        self.robot_state = "stopped"
+
+        ## task_state: prepare, taking, successm, or failure
+        self.task_state = "prepare"
+
+        # gripper
+        rp = intera_interface.RobotParams()
+        valid_limbs = rp.get_limb_names()
+        if not valid_limbs:
+            rp.log_message(("Cannot detect any limb parameters on this robot. "
+                            "Exiting."), "ERROR")
+            return
+        self.original_deadzone = None
+        try:
+            self.gripper = intera_interface.Gripper(valid_limbs[0] + '_gripper')
+        except (ValueError, OSError) as e:
+            rospy.logerr("Could not detect an electric gripper attached to the robot.")
+            self.clean_shutdown()
+            return
+        self.original_deadzone = self.gripper.get_dead_zone()
+        self.pre_grasping_msg = False
+        self.gripper_status = "open"
+
+        self.round_names = ["training",
+                            "freeExplore",
                             "practice1",
                             "practice2",
                             "trial1",
                             "trial2",
                             "trial3"]
 
-        self.round_names_vis = ["Free Explore",
-                            "Practice 1",
-                            "Practice 2",
+        self.round_names_vis = ["Training",
+                            "Explore",
+                            "Practice Round 1",
+                            "Practice Round 2",
                             "Trial 1",
                             "Trial 2",
                             "Trial 3"]
-        self.totalRound = 5
+        self.totalRound = 6
 
         path_to_src = rospkg.RosPack().get_path('publish_vive_input')
         condition_order_file_path = path_to_src + '/configs/condition_orders.yaml'
@@ -84,28 +119,43 @@ class StudyManager():
         rospy.Subscriber("/success", Bool, self.success_cb)
         rospy.Subscriber("/failure", Bool, self.failure_cb)
         rospy.Subscriber("/robot_state/clutching", Bool, self.clutching_cb)
+        rospy.Subscriber('/robot_state/grasping', Bool, self.gripper_cb)
 
         subprocess.Popen(["roslaunch", "mimicry_openvr", 
                         "mimicry_openvr.launch", "print_to_screen:=false"])
 
-        self.spawn_robot_control(self.conditions[self.cdt_index])
+        self.start()
 
-        self.pub_study_state("Condition 1 \n \n Training")
+        self.task_start_time = null_time()
+        self.start_recording_time = null_time()
+        self.stop_recording_time = null_time()
+        self.last_gripper_open_time = null_time()
+
+
+    def timer_cb(self, event):
+        if self.time_limit > 0 and self.task_state == "taking":
+            self.pub_study_state(self.display_msg + "\n\n Time Remaining: " + str(self.time_limit) + " s")
+            self.time_limit -= 1
+        else:
+            self.pub_study_state(self.display_msg)
 
     def pub_study_state(self, s):
-        msg = String()
-        msg.data = s
-        self.study_state_pub.publish(msg)
+            msg = String()
+            msg.data = s
+            self.study_state_pub.publish(msg)
 
     def gen_filename(self):
         filename = self.user_id
-        filename += "_condition_" + str(self.cdt_index)
+        filename += "_condition_" + str(self.cdt_index+1)
         filename += "_" + self.conditions[self.cdt_index]
         filename += "_round_" + self.round_names[self.round]
+        filename += '_'.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(3))
         return filename
 
-
     def saveTofile(self):
+        if (self.task_state != "taking"):
+            return
+
         # stop rosbag recording
         s = '/record'
         node_names = rosnode.get_node_names()
@@ -118,10 +168,14 @@ class StudyManager():
         data = {}
         data['userId'] = self.user_id
         data['entire_study_start_time'] = self.entire_study_start_time
+
         data['task start time (user release cluch)'] = self.task_start_time
-        data['task end time (drop into bin)'] = self.task_end_time
-        data['task completion time'] = str( self.task_end_time['secs'] + self.task_end_time['nsecs'] * 1e-9 
+        data['task end time (drop into bin)'] = self.last_gripper_open_time
+        data['task completion time'] = str( self.last_gripper_open_time['secs'] + self.last_gripper_open_time['nsecs'] * 1e-9 
                                             - self.task_start_time['secs'] - self.task_start_time['nsecs'] * 1e-9 ) + " s"
+
+        data['start reocording time'] = self.start_recording_time
+        data['stop reocording time'] = self.stop_recording_time
 
         data['cdt_index'] = self.cdt_index
         data['condition_order'] = self.condition_order
@@ -145,25 +199,16 @@ class StudyManager():
             self.stop_robot_control()
             self.spawn_robot_control(self.conditions[self.cdt_index])
 
-    def start_cb(self, msg):
+    def start(self):
+        print("if 1")
 
-        if self.robot_state == "running":
+        print("if 2")
+        if self.task_state == "taking":
+            self.success()
+        elif  self.robot_state == "running":
             self.stop_robot_control()
 
-        if  self.task_state == "finished":
-            self.round += 1
-            self.times = 0
-            if (self.round > self.totalRound ):
-                self.cdt_index += 1
-                self.round = 0
-                if self.cdt_index > len(self.conditions):
-                    print("finished everything")
-
-        elif self.task_state == "failure":
-            self.times += 1
-        else: 
-            print("error: unknow task state: " + self.task_state)
-            return
+        print("if 3")
 
         self.spawn_robot_control(self.conditions[self.cdt_index])
         self.task_state = "prepare"
@@ -174,27 +219,48 @@ class StudyManager():
         print("current round: "  + str(self.round))
         print("current times: "  + str(self.times))
 
-        self.pub_study_state("Condition " + str(self.cdt_index + 1) + "\n" + self.round_names_vis[self.round])
+        if self.round == 0:
+            self.display_msg = "Training"
+            self.time_limit = 0
+        else:
+            self.display_msg = "Condition " + str(self.cdt_index + 1) + " out of 3" \
+                    + "\n\n" + self.round_names_vis[self.round]
+
+            self.time_limit = 60
+            if (self.round == 1): 
+                self.time_limit = 60
+
+        self.start_recording_time = curr_time()
 
         bag_file_name = self.gen_filename() + ".bag"
-        record_topics = '/tf /usb_cam/image_raw/compressed'
+        record_topics = '/tf /usb_cam/image_raw/compressed /usb_cam_2/image_raw/compressed /relaxed_ik/ee_pose_goals /robot/joint_states /vive_input/raw_data'
 
         command = "rosbag record -O " + self.directory + '/' + bag_file_name  + ' ' + record_topics
         print(command)
         self.bag = subprocess.Popen(command, stdin=subprocess.PIPE, shell=True)
 
 
-    def success_cb(self, msg):
-        self.task_end_time = curr_time()
-        self.task_state = "finished"
-        self.saveTofile()
+    def start_cb(self, msg):
+        self.start()
+
+    def success(self):
         self.stop_robot_control()
+        self.task_state = "finished"
+        self.round += 1
+        self.times = 0
+        if (self.round > self.totalRound ):
+            self.cdt_index += 1
+            self.round = 1
+            if self.cdt_index > len(self.conditions):
+                print("finished everything")
+
+    def success_cb(self, msg):
+        self.success()
 
     def failure_cb(self, msg):
-        self.task_end_time = curr_time()
-        self.task_state = "failure"
-        self.saveTofile()
         self.stop_robot_control()
+        self.task_state = "failure"
+        self.times += 1
       
     def spawn_robot_control(self, control_mapping ):
         print("spawn_robot_control", control_mapping)
@@ -204,6 +270,13 @@ class StudyManager():
         self.robot_state = "running"
       
     def stop_robot_control(self):
+
+        self.stop_recording_time = curr_time()
+
+        self.time_limit = 0
+
+        self.saveTofile()
+
         node_names = [
             "vive_input",
             "sawyer_control",
@@ -217,6 +290,17 @@ class StudyManager():
         subprocess.Popen(cmd)
         rospy.sleep(5)
         self.robot_state = "stopped"
+
+    def gripper_cb(self, msg):
+        if (msg.data == True and self.pre_grasping_msg != True):
+            if (self.gripper_status == "open"):
+                self.gripper.close()
+                self.gripper_status = "closed"
+            else:
+                self.gripper.open()
+                self.last_gripper_open_time = curr_time()
+                self.gripper_status = "open"
+        self.pre_grasping_msg = msg.data
   
 
 if __name__ == '__main__':

@@ -19,7 +19,7 @@ SCALE = 20
 
 class TaskStateExplainer():
     window = tk.Tk()
-    window.title("Current Status")    
+    window.title("Study Progress")    
     var = tk.StringVar()
     font = tkFont.Font(family='Helvetica', size=24)
     

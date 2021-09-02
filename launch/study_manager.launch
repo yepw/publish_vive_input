@@ -15,9 +15,21 @@
         <param name="framerate" value="30" />
     </node>
 
+    <node name="usb_cam_2" pkg="usb_cam" type="usb_cam_node" output="screen" >
+        <param name="video_device" value="/dev/video6" />
+        <param name="image_width" value="800" />
+        <param name="image_height" value="600" />
+        <param name="pixel_format" value="mjpeg" />
+        <param name="camera_frame_id" value="tpv_cam_2" />
+        <param name="io_method" value="mmap"/>
+        <param name="camera_name" value="webcam"/>
+        <param name="framerate" value="30" />
+    </node>
+
     <node name="task_state_explainer" pkg="publish_vive_input" type="task_state_explainer.py" output="screen" />
+    <node name="task_state_explainer_2" pkg="publish_vive_input" type="task_state_explainer.py" output="screen" />
 
     <node name="image_view" pkg="image_view" type="image_view" output="screen" >
-        <remap from="image" to="/usb_cam/image_annotated" />  
+        <remap from="image" to="/usb_cam/image_raw" />  
     </node>
 </launch>

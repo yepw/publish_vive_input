@@ -1,8 +1,11 @@
-condition_order: CAB
+condition_order: ABC
 condition_map :
   A : camera
   B : camera_right_world_up
   C : robot
 starting_cdt_index : 0
+
+# -1 for training
 starting_round : 0
+
 starting_times : 0
