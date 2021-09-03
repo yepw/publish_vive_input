@@ -5,7 +5,7 @@
       <arg name="control_mapping" default = "robot"/>
 
       <node unless="$(arg use_ns)" pkg="publish_vive_input" type="publish_input" name="vive_input" output="screen" cwd="node">
-            <remap from="ee_pose_goals" to="/relaxed_ik/ee_pose_goals" />    
+            <remap from="ee_pose_goals" to="/relaxed_ik/ee_pose_goals_raw" />    
             <param name="control_mapping" type="string" value="$(arg control_mapping)" />
       </node>
       <node if="$(arg use_ns)" pkg="publish_vive_input" type="publish_input" name="vive_input" 

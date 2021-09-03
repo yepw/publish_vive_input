@@ -3,9 +3,7 @@ condition_map :
   A : camera
   B : camera_right_world_up
   C : robot
-starting_cdt_index : 0
+starting_cdt_index : 1
 
-# -1 for training
-starting_round : 0
-
-starting_times : 0
+# 0 for training
+starting_round : 3

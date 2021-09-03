@@ -46,7 +46,6 @@ class StudyManager():
 
     def __init__(self):
 
-        self.timer = rospy.Timer(rospy.Duration(1), self.timer_cb)
         self.time_limit = 0
         self.display_msg = ""
 
@@ -104,7 +103,6 @@ class StudyManager():
         self.condition_order = y["condition_order"]
         
         self.round =  y["starting_round"]
-        self.times = y["starting_times"]
         self.cdt_index = y["starting_cdt_index"]
 
         self.conditions = []
@@ -131,6 +129,8 @@ class StudyManager():
         self.stop_recording_time = null_time()
         self.last_gripper_open_time = null_time()
 
+        self.timer = rospy.Timer(rospy.Duration(1), self.timer_cb)
+
 
     def timer_cb(self, event):
         if self.time_limit > 0 and self.task_state == "taking":
@@ -149,11 +149,12 @@ class StudyManager():
         filename += "_condition_" + str(self.cdt_index+1)
         filename += "_" + self.conditions[self.cdt_index]
         filename += "_round_" + self.round_names[self.round]
-        filename += '_'.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(3))
+        filename += "_" + self.round_names[self.round]
+        filename += ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(3))
         return filename
 
     def saveTofile(self):
-        if (self.task_state != "taking"):
+        if (self.task_state == "prepare"):
             return
 
         # stop rosbag recording
@@ -181,7 +182,6 @@ class StudyManager():
         data['condition_order'] = self.condition_order
         data['current condition'] = self.conditions[self.cdt_index]
         data['current round'] = self.round
-        data['current try times'] = self.times
 
         data['task_state'] = self.task_state
 
@@ -200,15 +200,10 @@ class StudyManager():
             self.spawn_robot_control(self.conditions[self.cdt_index])
 
     def start(self):
-        print("if 1")
-
-        print("if 2")
         if self.task_state == "taking":
             self.success()
         elif  self.robot_state == "running":
             self.stop_robot_control()
-
-        print("if 3")
 
         self.spawn_robot_control(self.conditions[self.cdt_index])
         self.task_state = "prepare"
@@ -217,7 +212,6 @@ class StudyManager():
         print("current condition index: "  + str(self.cdt_index))
         print("current condition: "  + self.conditions[self.cdt_index])
         print("current round: "  + str(self.round))
-        print("current times: "  + str(self.times))
 
         if self.round == 0:
             self.display_msg = "Training"
@@ -226,7 +220,7 @@ class StudyManager():
             self.display_msg = "Condition " + str(self.cdt_index + 1) + " out of 3" \
                     + "\n\n" + self.round_names_vis[self.round]
 
-            self.time_limit = 60
+            self.time_limit = 90
             if (self.round == 1): 
                 self.time_limit = 60
 
@@ -244,10 +238,9 @@ class StudyManager():
         self.start()
 
     def success(self):
-        self.stop_robot_control()
         self.task_state = "finished"
+        self.stop_robot_control()
         self.round += 1
-        self.times = 0
         if (self.round > self.totalRound ):
             self.cdt_index += 1
             self.round = 1
@@ -258,9 +251,14 @@ class StudyManager():
         self.success()
 
     def failure_cb(self, msg):
-        self.stop_robot_control()
         self.task_state = "failure"
-        self.times += 1
+        self.stop_robot_control()
+        self.round += 1
+        if (self.round > self.totalRound ):
+            self.cdt_index += 1
+            self.round = 1
+            if self.cdt_index > len(self.conditions):
+                print("finished everything")
       
     def spawn_robot_control(self, control_mapping ):
         print("spawn_robot_control", control_mapping)

@@ -16,7 +16,7 @@
     </node>
 
     <node name="usb_cam_2" pkg="usb_cam" type="usb_cam_node" output="screen" >
-        <param name="video_device" value="/dev/video6" />
+        <param name="video_device" value="/dev/video4" />
         <param name="image_width" value="800" />
         <param name="image_height" value="600" />
         <param name="pixel_format" value="mjpeg" />
