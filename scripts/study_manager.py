@@ -148,8 +148,8 @@ class StudyManager():
         filename = self.user_id
         filename += "_condition_" + str(self.cdt_index+1)
         filename += "_" + self.conditions[self.cdt_index]
-        filename += "_round_" + self.round_names[self.round]
         filename += "_" + self.round_names[self.round]
+        filename += "_" 
         filename += ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(3))
         return filename
 
@@ -227,12 +227,11 @@ class StudyManager():
         self.start_recording_time = curr_time()
 
         bag_file_name = self.gen_filename() + ".bag"
-        record_topics = '/tf /usb_cam/image_raw/compressed /usb_cam_2/image_raw/compressed /relaxed_ik/ee_pose_goals /robot/joint_states /vive_input/raw_data'
+        record_topics = '/tf /usb_cam/image_raw/compressed /usb_cam_2/image_raw/compressed /relaxed_ik/ee_pose_goals /relaxed_ik/joint_angle_solutions /vive_input/raw_data'
 
         command = "rosbag record -O " + self.directory + '/' + bag_file_name  + ' ' + record_topics
         print(command)
         self.bag = subprocess.Popen(command, stdin=subprocess.PIPE, shell=True)
-
 
     def start_cb(self, msg):
         self.start()
@@ -279,6 +278,7 @@ class StudyManager():
             "vive_input",
             "sawyer_control",
             "relaxed_ik",
+            "sawyer_protector",
         ]
 
         cmd = ["rosnode", "kill"]
