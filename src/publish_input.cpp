@@ -104,6 +104,8 @@ namespace vive_input {
 
         std::string control_mapping;
         private_n.getParam("control_mapping", control_mapping);
+        std::string pause;
+        private_n.getParam("pause", pause);
 
         float cam[16];
 
@@ -148,6 +150,11 @@ namespace vive_input {
         }
 
         input.control_mappings = glm::make_mat3(cam);
+
+        if (pause == "false") {
+            std::cout << "in pause false !!!!!!!!!!!!!!!!" ;
+            input.clutching.turn_off();
+        }
 
         ee_pub = n.advertise<ros_server::EEPoseGoals>("ee_pose_goals", 10);
         reset_pub = n.advertise<std_msgs::Bool>("/relaxed_ik/reset", 10);
@@ -565,15 +572,15 @@ namespace vive_input {
         pose.position.y = input.out_pos.y;
         pose.position.z = input.out_pos.z;
 
-        // pose.orientation.x = input.out_orient.x;
-        // pose.orientation.y = input.out_orient.y;
-        // pose.orientation.z = input.out_orient.z;
-        // pose.orientation.w = input.out_orient.w;
+        pose.orientation.x = input.out_orient.x;
+        pose.orientation.y = input.out_orient.y;
+        pose.orientation.z = input.out_orient.z;
+        pose.orientation.w = input.out_orient.w;
 
-        pose.orientation.x = 0.;
-        pose.orientation.y = 0.;
-        pose.orientation.z = 0.;
-        pose.orientation.w = 1.;
+        // pose.orientation.x = 0.;
+        // pose.orientation.y = 0.;
+        // pose.orientation.z = 0.;
+        // pose.orientation.w = 1.;
 
         goal.header.stamp = ros::Time::now();
         goal.ee_poses.push_back(pose);

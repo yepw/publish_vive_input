@@ -227,7 +227,8 @@ class StudyManager():
         self.start_recording_time = curr_time()
 
         bag_file_name = self.gen_filename() + ".bag"
-        record_topics = '/tf /usb_cam/image_raw/compressed /usb_cam_2/image_raw/compressed /relaxed_ik/ee_pose_goals /relaxed_ik/joint_angle_solutions /vive_input/raw_data'
+        # record_topics = '/tf /usb_cam/image_raw/compressed /usb_cam_2/image_raw/compressed /relaxed_ik/ee_pose_goals /relaxed_ik/joint_angle_solutions /vive_input/raw_data'
+        record_topics = ''
 
         command = "rosbag record -O " + self.directory + '/' + bag_file_name  + ' ' + record_topics
         print(command)

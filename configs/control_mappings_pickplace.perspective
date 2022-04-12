@@ -33,7 +33,7 @@
               "keys": {
                 "publishers": {
                   "type": "repr",
-                  "repr": "u\"[{'topic_name': '/reset', 'type_name': 'std_msgs/Bool', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 0, 'counter': 0}, {'type_name': 'std_msgs/Bool', 'topic_name': '/start', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 1, 'counter': 3}, {'topic_name': '/success', 'type_name': 'std_msgs/Bool', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 3, 'counter': 1}, {'type_name': 'std_msgs/Bool', 'topic_name': '/failure', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 4, 'counter': 0}, {'type_name': 'std_msgs/Bool', 'topic_name': '/failure', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 5, 'counter': 0}, {'type_name': 'std_msgs/Bool', 'topic_name': '/failure', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 6, 'counter': 0}, {'type_name': 'std_msgs/Bool', 'topic_name': '/failure', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 7, 'counter': 0}, {'type_name': 'std_msgs/Bool', 'topic_name': '/success', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 8, 'counter': 0}, {'type_name': 'std_msgs/Bool', 'topic_name': '/success', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 9, 'counter': 0}, {'type_name': 'std_msgs/Bool', 'topic_name': '/success', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 10, 'counter': 0}, {'type_name': 'std_msgs/Bool', 'topic_name': '/start', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 11, 'counter': 0}, {'type_name': 'std_msgs/Bool', 'topic_name': '/start', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 12, 'counter': 0}, {'type_name': 'std_msgs/Bool', 'topic_name': '/start', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 13, 'counter': 0}]\""
+                  "repr": "u\"[{'topic_name': '/reset', 'type_name': 'std_msgs/Bool', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 0, 'counter': 0}, {'type_name': 'std_msgs/Bool', 'topic_name': '/start', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 1, 'counter': 0}, {'topic_name': '/success', 'type_name': 'std_msgs/Bool', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 2, 'counter': 0}, {'type_name': 'std_msgs/Bool', 'topic_name': '/failure', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 3, 'counter': 0}, {'type_name': 'std_msgs/Bool', 'topic_name': '/failure', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 4, 'counter': 0}, {'type_name': 'std_msgs/Bool', 'topic_name': '/failure', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 5, 'counter': 0}, {'type_name': 'std_msgs/Bool', 'topic_name': '/failure', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 6, 'counter': 0}, {'type_name': 'std_msgs/Bool', 'topic_name': '/success', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 7, 'counter': 0}, {'type_name': 'std_msgs/Bool', 'topic_name': '/success', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 8, 'counter': 0}, {'type_name': 'std_msgs/Bool', 'topic_name': '/success', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 9, 'counter': 0}, {'type_name': 'std_msgs/Bool', 'topic_name': '/start', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 10, 'counter': 0}, {'type_name': 'std_msgs/Bool', 'topic_name': '/start', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 11, 'counter': 0}, {'type_name': 'std_msgs/Bool', 'topic_name': '/start', 'enabled': False, 'rate': 1.0, 'expressions': {}, 'publisher_id': 12, 'counter': 0}]\""
                 }
               },
               "groups": {}
@@ -97,6 +97,73 @@
                 "topic": {
                   "type": "repr",
                   "repr": "u'/usb_cam_2/image_raw'"
+                },
+                "publish_click_location": {
+                  "type": "repr",
+                  "repr": "False"
+                }
+              },
+              "groups": {}
+            }
+          }
+        },
+        "plugin__rqt_image_view__ImageView__3": {
+          "keys": {},
+          "groups": {
+            "dock_widget__ImageViewWidget": {
+              "keys": {
+                "dockable": {
+                  "type": "repr",
+                  "repr": "True"
+                },
+                "parent": {
+                  "type": "repr",
+                  "repr": "None"
+                },
+                "dock_widget_title": {
+                  "type": "repr",
+                  "repr": "u'Image View (3)'"
+                }
+              },
+              "groups": {}
+            },
+            "plugin": {
+              "keys": {
+                "max_range": {
+                  "type": "repr",
+                  "repr": "10.0"
+                },
+                "rotate": {
+                  "type": "repr",
+                  "repr": "0"
+                },
+                "smooth_image": {
+                  "type": "repr",
+                  "repr": "False"
+                },
+                "mouse_pub_topic": {
+                  "type": "repr",
+                  "repr": "u'/usb_cam_3/image_raw_mouse_left'"
+                },
+                "num_gridlines": {
+                  "type": "repr",
+                  "repr": "0"
+                },
+                "toolbar_hidden": {
+                  "type": "repr",
+                  "repr": "False"
+                },
+                "zoom1": {
+                  "type": "repr",
+                  "repr": "False"
+                },
+                "dynamic_range": {
+                  "type": "repr",
+                  "repr": "False"
+                },
+                "topic": {
+                  "type": "repr",
+                  "repr": "u'/usb_cam_3/image_raw'"
                 },
                 "publish_click_location": {
                   "type": "repr",
@@ -180,13 +247,13 @@
       "keys": {
         "geometry": {
           "type": "repr(QByteArray.hex)",
-          "repr(QByteArray.hex)": "QtCore.QByteArray('01d9d0cb00020000000003df000000a900000eeb000006e7000003df000000c700000eeb000006e700000000000000000f00')",
-          "pretty-print": "                         "
+          "repr(QByteArray.hex)": "QtCore.QByteArray('01d9d0cb00020000000003b9000000a700000ec500000432000003b9000000c500000ec50000043200000000000000000f00')",
+          "pretty-print": "           2       2     "
         },
         "state": {
           "type": "repr(QByteArray.hex)",
-          "repr(QByteArray.hex)": "QtCore.QByteArray('000000ff00000000fd000000010000000300000b0d000005f5fc0100000003fb0000005a007200710074005f0069006d006100670065005f0076006900650077005f005f0049006d0061006700650056006900650077005f005f0031005f005f0049006d00610067006500560069006500770057006900640067006500740100000000000004da000000c700fffffffb00000058007200710074005f007000750062006c00690073006800650072005f005f005000750062006c00690073006800650072005f005f0031005f005f005000750062006c0069007300680065007200570069006400670065007401000004e00000023d0000023d00fffffffb0000005a007200710074005f0069006d006100670065005f0076006900650077005f005f0049006d0061006700650056006900650077005f005f0032005f005f0049006d00610067006500560069006500770057006900640067006500740100000723000003ea000000dd00ffffff00000b0d0000000000000004000000040000000800000008fc00000001000000030000000100000036004d0069006e0069006d0069007a006500640044006f0063006b00570069006400670065007400730054006f006f006c0062006100720000000000ffffffff0000000000000000')",
-          "pretty-print": "                 Zrqt_image_view__ImageView__1__ImageViewWidget          Xrqt_publisher__Publisher__1__PublisherWidget          Zrqt_image_view__ImageView__2__ImageViewWidget                            6MinimizedDockWidgetsToolbar        "
+          "repr(QByteArray.hex)": "QtCore.QByteArray('000000ff00000000fd000000010000000300000b0d00000342fc0100000003fc00000000000004a0000000c700fffffffc0200000002fb0000005a007200710074005f0069006d006100670065005f0076006900650077005f005f0049006d0061006700650056006900650077005f005f0031005f005f0049006d00610067006500560069006500770057006900640067006500740100000016000003420000005100fffffffb0000005a007200710074005f0069006d006100670065005f0076006900650077005f005f0049006d0061006700650056006900650077005f005f0033005f005f0049006d00610067006500560069006500770057006900640067006500740100000322000002e90000000000000000fb00000058007200710074005f007000750062006c00690073006800650072005f005f005000750062006c00690073006800650072005f005f0031005f005f005000750062006c0069007300680065007200570069006400670065007401000004a6000002a60000023d00fffffffb0000005a007200710074005f0069006d006100670065005f0076006900650077005f005f0049006d0061006700650056006900650077005f005f0032005f005f0049006d00610067006500560069006500770057006900640067006500740100000752000003bb000000dd00ffffff00000b0d0000000000000004000000040000000800000008fc00000001000000030000000100000036004d0069006e0069006d0069007a006500640044006f0063006b00570069006400670065007400730054006f006f006c0062006100720000000000ffffffff0000000000000000')",
+          "pretty-print": "                                                                              B Q                                                   \"                                                          =                                                   R                                                              "
         }
       },
       "groups": {

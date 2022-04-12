@@ -24,9 +24,9 @@ class TaskStateExplainer():
     font = tkFont.Font(family='Helvetica', size=24)
     
     tk.Label(window, textvariable=var, font = font).pack()
-    window.geometry('+%d+%d' % (30*SCALE, 10*SCALE))
-    window.minsize(width=30*SCALE, height=10*SCALE)
-    window.maxsize(width=30*SCALE, height=10*SCALE)
+    window.geometry('+%d+%d' % (30*SCALE, 15*SCALE))
+    window.minsize(width=30*SCALE, height=15*SCALE)
+    window.maxsize(width=30*SCALE, height=15*SCALE)
 
     rospy.init_node('joystick_explainer')
     
