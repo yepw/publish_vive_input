@@ -262,7 +262,7 @@ class StudyManager():
       
     def spawn_robot_control(self, control_mapping ):
         print("spawn_robot_control", control_mapping)
-        subprocess.Popen(["roslaunch", "ros_server", 
+        subprocess.Popen(["roslaunch", "ur5_optimization", 
                         "vive_sawyer.launch", "user_study_manager:=true", "control_mapping:="+control_mapping])
         rospy.sleep(2)
         self.robot_state = "running"

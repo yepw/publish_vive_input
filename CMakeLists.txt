@@ -9,7 +9,7 @@ project(publish_vive_input)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
     roscpp
-    ros_server
+    ur5_optimization
     tf2_ros
     std_msgs
     sensor_msgs
@@ -72,7 +72,7 @@ generate_messages(
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES publish_vive_input
-  CATKIN_DEPENDS roscpp ros_server geometry_msgs std_msgs sensor_msgs tf2_ros message_generation
+  CATKIN_DEPENDS roscpp ur5_optimization geometry_msgs std_msgs sensor_msgs tf2_ros message_generation
 #  DEPENDS system_lib
 )
 

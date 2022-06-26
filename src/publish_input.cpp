@@ -17,7 +17,7 @@
 #include <std_msgs/Float32.h>
 #include <std_msgs/Float32MultiArray.h>
 #include <std_msgs/String.h>
-#include <ros_server/EEPoseGoals.h>
+#include <ur5_optimization/EEPoseGoals.h>
 #include <publish_vive_input/ButtonInfo.h>
 #include <publish_vive_input/ControllerInfo.h>
 #include <publish_vive_input/ControllersInput.h>
@@ -33,7 +33,7 @@
 #include "publish_vive_input/publish_input.hpp"
 
 using json = nlohmann::json;
-using EEPoseGoals = ros_server::EEPoseGoals;
+using EEPoseGoals = ur5_optimization::EEPoseGoals;
 using ButtonInfo = publish_vive_input::ButtonInfo;
 using ControllerInfo = publish_vive_input::ControllerInfo;
 using ControllersInput = publish_vive_input::ControllersInput;
@@ -156,7 +156,7 @@ namespace vive_input {
             input.clutching.turn_off();
         }
 
-        ee_pub = n.advertise<ros_server::EEPoseGoals>("ee_pose_goals", 10);
+        ee_pub = n.advertise<ur5_optimization::EEPoseGoals>("ee_pose_goals", 10);
         reset_pub = n.advertise<std_msgs::Bool>("/relaxed_ik/reset", 10);
         grasper_pub = n.advertise<std_msgs::Bool>("/robot_state/grasping", 10);
         clutching_pub = n.advertise<std_msgs::Bool>("/robot_state/clutching", 10);
