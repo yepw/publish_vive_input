@@ -12,6 +12,7 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <glm/gtx/string_cast.hpp>
+#include <tf/transform_listener.h>
 
 #include "publish_vive_input/switch.hpp"
 
@@ -32,35 +33,34 @@ namespace vive_input
 
     struct Input
     {
-        glm::vec3 prev_raw_pos, prev_ee_pos, cur_ee_pos, out_pos;
-        glm::quat prev_raw_orient, prev_ee_orient, cur_ee_orient, out_orient;
-        glm::quat init_raw_orient;
+        glm::vec3  prev_raw_pos, input_posi_vel;
+        glm::quat  prev_raw_orient, input_rot_vel;
         glm::vec3 manual_adjust;
         // glm::mat3 cam_rot_mat;
         glm::mat3 control_mappings;
         glm::vec3 cam_init_raw_pos, camera_offset;
         Switch grabbing, reset, clutching, toggle, reset_cam;
         float cur_outer_cone, cur_distance;
-        bool initialized;
         bool cam_offset_init, camera_control;
+        bool initialized;
         bool manual_reset;
 
         const float kStartingOuterCone = M_PI_4;
         const float kStartingDistance = 0.75;
 
-        Input() : initialized(false), cam_offset_init(false), camera_control(false), manual_reset(false),
-                out_orient(1.0, 0.0, 0.0, 0.0), cur_ee_pos(0.0), cur_ee_orient(1.0, 0.0, 0.0, 0.0), 
-                init_raw_orient(1.0, 0.0, 0.0, 0.0), out_pos(0.0), manual_adjust(0.0), control_mappings(1.0), 
+        Input() :  initialized(false), manual_reset(false),
+                input_rot_vel(1.0, 0.0, 0.0, 0.0), prev_raw_pos(0.0), prev_raw_orient(1.0, 0.0, 0.0, 0.0), 
+                 input_posi_vel(0.0), manual_adjust(0.0), control_mappings(1.0), 
                 camera_offset(0.0), cur_outer_cone(kStartingOuterCone), cur_distance(kStartingDistance),
                 grabbing(Switch(true, Switch::Type::HOLD)), reset(Switch(false, Switch::Type::HOLD)),
-                clutching(Switch(true, Switch::Type::SINGLE)), toggle(Switch(false, Switch::Type::HOLD)),
+                clutching(Switch(false, Switch::Type::HOLD)), toggle(Switch(false, Switch::Type::HOLD)),
                 reset_cam(Switch(false, Switch::Type::HOLD)) {}
 
         std::string to_str()
         {
             std::string content;
-            content  = "Position: " + glm::to_string(out_pos) + "\n";
-            content += "Orientation: " + glm::to_string(out_orient) + "\n";
+            content  = "Position: " + glm::to_string(input_posi_vel) + "\n";
+            content += "Orientation: " + glm::to_string(input_rot_vel) + "\n";
             content += "Manual Adj: " + toggle.to_str();
             content +=  "\t" + glm::to_string(manual_adjust) + "\n";
             content += "Grab: " + grabbing.to_str() + "\n";
@@ -95,31 +95,17 @@ namespace vive_input
         Socket in_socket; // Raw Vive input data
         Socket out_socket; // Commands for interface
         bool shutting_down;
+        tf::StampedTransform wrist_3_transform;
 
         // ROS
-        ros::Publisher ee_pub;
-        ros::Publisher reset_pub;
+        ros::Publisher controller_pose_pub;
         ros::Publisher grasper_pub;
         ros::Publisher clutching_pub;
-        ros::Publisher outer_cone_pub;
-        ros::Publisher inner_cone_pub;
-        ros::Publisher distance_pub;
-        ros::Publisher toggle_pub;
         ros::Publisher controller_raw_pub;
         ros::Publisher controller_raw_string_pub;
-        ros::Publisher keyboard_raw_pub;
-
-        ros::Subscriber rot_mat_sub;
-        ros::Subscriber keyboard_input_sub;
-        ros::Subscriber cam_sub;
-        ros::Subscriber manual_reset;
 
         ros::AsyncSpinner spinner;
 
-        void camRotationMatrixCallback(std_msgs::Float32MultiArrayConstPtr msg);
-        void controlFrameMatrixCallback(std_msgs::Float32MultiArrayConstPtr msg);
-        void keyboardInputCallback(geometry_msgs::TwistStampedConstPtr msg);
-        void evaluateVisibility(const sensor_msgs::ImageConstPtr image);
         void triggerManualReset(std_msgs::Bool msg);
 
         bool init();
@@ -133,7 +119,6 @@ namespace vive_input
     bool initializeSocket(Socket &sock, bool incoming=true);
     std::string getSocketData(Socket &sock);
     inline glm::quat quaternionDisplacement(const glm::quat &q1, const glm::quat &quat2);
-    glm::quat rotateQuaternionByMatrix(glm::quat q, glm::mat3 R);
     inline glm::vec3 updatePosition(const glm::vec3 &prev_p, const glm::vec3 &input_vel, const glm::mat3 &r_cam);
     glm::vec3 rotatePositionByQuaternion(glm::vec3 pos, glm::quat q, glm::quat q_inverse);
     inline glm::vec3 positionToCameraFrame(const glm::vec3 &prev_p, const glm::vec3 &input_vel, const glm::mat3 &r_cam);
