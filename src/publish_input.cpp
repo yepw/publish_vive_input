@@ -108,6 +108,10 @@ namespace vive_input {
         controller_pose_pub = n.advertise<geometry_msgs::Pose>("/vive_input/controller_vel", 1);
         controller_raw_pub = n.advertise<ControllersInput>("/vive_input/raw_data", 1);
         controller_raw_string_pub = n.advertise<std_msgs::String>("/vive_input/raw_string", 1);
+        user_start_pub = n.advertise<std_msgs::Bool>("user_start", 1);
+
+        task_state = "pre";
+        study_state_sub = n.subscribe("study_state", 1000, &App::studyStateCb, this);
 
         // Init sockets
 
@@ -126,6 +130,16 @@ namespace vive_input {
 
         return true;
     }
+
+
+    void App::studyStateCb(const std_msgs::String::ConstPtr& msg)
+    {
+        std::string s = msg->data.c_str();
+        if (s.find_last_of('_') != std::string::npos) {
+            task_state = s.substr(s.find_last_of('_')+1);
+        }
+    }
+
 
     std::string getSocketData(Socket &sock)
     {
@@ -250,8 +264,14 @@ namespace vive_input {
 
                             case ContrCommands::CLUTCH:
                             {
-                                bool raw_input(j[controller][button]["boolean"] and j[controller][button]["pressure"] < 1.0 );
+                                bool raw_input(j[controller][button]["boolean"]);
+                                // bool raw_input(j[controller][button]["boolean"] and j[controller][button]["pressure"] < 1.0 );
                                 input.clutching = raw_input;
+                                if (raw_input == true && strcmp(task_state.c_str(), "ready") == 0) {
+                                    std_msgs::Bool msg;
+                                    msg.data = true;
+                                    user_start_pub.publish( msg );
+                                }
 
                                 right_contr.button3.name = "clutch";
                                 right_contr.button3.has_boolean = true;

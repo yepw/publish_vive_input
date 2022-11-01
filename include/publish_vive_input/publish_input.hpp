@@ -95,6 +95,7 @@ namespace vive_input
         Socket in_socket; // Raw Vive input data
         Socket out_socket; // Commands for interface
         bool shutting_down;
+        std::string task_state;
         tf::StampedTransform wrist_3_transform;
 
         // ROS
@@ -103,6 +104,8 @@ namespace vive_input
         ros::Publisher clutching_pub;
         ros::Publisher controller_raw_pub;
         ros::Publisher controller_raw_string_pub;
+        ros::Publisher user_start_pub;
+        ros::Subscriber study_state_sub;
 
         ros::AsyncSpinner spinner;
 
@@ -114,6 +117,7 @@ namespace vive_input
         void publishRobotData();
         void getKeyboardInput();
         void handleKeyboardInput(int command);
+        void studyStateCb(const std_msgs::String::ConstPtr& msg);
     };
 
     bool initializeSocket(Socket &sock, bool incoming=true);
@@ -126,6 +130,7 @@ namespace vive_input
     glm::quat orientationToUR5Frame(glm::quat quat_in);
     glm::mat4 translation_matrix(glm::vec3 coords);
     glm::vec3 translation_from_matrix(glm::mat4 mat);
+
 
 } // namespace vive_input
 
